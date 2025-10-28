@@ -156,6 +156,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put("/api/employee-types/:id", isAuthenticated, requireRole("super_admin", "admin"), async (req: any, res) => {
+    try {
+      const data = insertEmployeeTypeSchema.partial().parse(req.body);
+      const type = await storage.updateEmployeeType(req.params.id, data);
+      res.json(type);
+    } catch (error: any) {
+      console.error("Error updating employee type:", error);
+      res.status(400).json({ message: error.message || "Failed to update employee type" });
+    }
+  });
+
+  app.delete("/api/employee-types/:id", isAuthenticated, requireRole("super_admin", "admin"), async (req: any, res) => {
+    try {
+      const existingType = await storage.getEmployeeType(req.params.id);
+      if (!existingType) {
+        return res.status(404).json({ message: "Employee type not found" });
+      }
+      if (!existingType.isActive) {
+        // Already inactive - idempotent response
+        return res.json({ message: "Employee type already deactivated" });
+      }
+      await storage.updateEmployeeType(req.params.id, { isActive: false });
+      res.json({ message: "Employee type deactivated successfully" });
+    } catch (error: any) {
+      console.error("Error deactivating employee type:", error);
+      res.status(500).json({ message: error.message || "Failed to deactivate employee type" });
+    }
+  });
+
   // ============= Project Routes =============
   app.get("/api/projects", isAuthenticated, async (req: any, res) => {
     try {

@@ -53,7 +53,26 @@ const roleBadgeColors: Record<UserRole, string> = {
   labourer: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
 };
 
-export default function UsersPage() {
+interface UsersPageProps {
+  user: User;
+}
+
+export default function UsersPage({ user }: UsersPageProps) {
+  // Check authorization - only super_admin and admin can access
+  if (user.role !== "super_admin" && user.role !== "admin") {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center">
+            <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
+            <p className="text-muted-foreground">
+              You don't have permission to access this page.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");

@@ -8,6 +8,7 @@ import AppSidebar from "@/components/AppSidebar";
 import ThemeToggle from "@/components/ThemeToggle";
 import Dashboard from "@/pages/dashboard";
 import UsersPage from "@/pages/users";
+import EmployeeTypesPage from "@/pages/employee-types";
 import NotFound from "@/pages/not-found";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -73,9 +74,8 @@ function AuthenticatedApp({ user }: { user: User }) {
               <Switch>
                 <Route path="/" component={() => <Dashboard user={user} />} />
                 <Route path="/dashboard" component={() => <Dashboard user={user} />} />
-                {(user.role === "super_admin" || user.role === "admin") && (
-                  <Route path="/users" component={UsersPage} />
-                )}
+                <Route path="/users" component={() => <UsersPage user={user} />} />
+                <Route path="/employee-types" component={() => <EmployeeTypesPage user={user} />} />
                 <Route component={NotFound} />
               </Switch>
             </div>
