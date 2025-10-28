@@ -9,6 +9,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import Dashboard from "@/pages/dashboard";
 import UsersPage from "@/pages/users";
 import EmployeeTypesPage from "@/pages/employee-types";
+import ProjectsPage from "@/pages/projects";
 import NotFound from "@/pages/not-found";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -76,6 +77,7 @@ function AuthenticatedApp({ user }: { user: User }) {
                 <Route path="/dashboard" component={() => <Dashboard user={user} />} />
                 <Route path="/users" component={() => <UsersPage user={user} />} />
                 <Route path="/employee-types" component={() => <EmployeeTypesPage user={user} />} />
+                <Route path="/projects" component={() => <ProjectsPage user={user} />} />
                 <Route component={NotFound} />
               </Switch>
             </div>
