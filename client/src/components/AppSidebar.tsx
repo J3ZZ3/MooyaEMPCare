@@ -10,9 +10,10 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { Building2, LayoutDashboard, Briefcase, Users, DollarSign, FileText, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, Briefcase, Users, DollarSign, FileText, Settings, LogOut } from "lucide-react";
 import RoleBadge from "./RoleBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import mooyaLogo from "@assets/Mooya Logo_1761683789909.png";
 
 type UserRole = "super_admin" | "admin" | "project_manager" | "supervisor" | "project_admin" | "labourer";
 
@@ -76,7 +77,7 @@ export default function AppSidebar({
     <Sidebar data-testid="sidebar-main">
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3">
-          <Building2 className="w-8 h-8 text-primary" />
+          <img src={mooyaLogo} alt="Mooya Wireless" className="w-10 h-10" />
           <div>
             <h2 className="font-semibold">Mooya EMPCare</h2>
             <p className="text-xs text-muted-foreground">Fibre Management</p>

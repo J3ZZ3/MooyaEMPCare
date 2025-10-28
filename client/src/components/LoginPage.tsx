@@ -1,6 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Building2 } from "lucide-react";
+import mooyaLogo from "@assets/Mooya Logo_1761683789909.png";
 
 interface LoginPageProps {
   onLogin: () => void;
@@ -12,9 +12,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       <Card className="w-full max-w-md" data-testid="card-login">
         <CardHeader className="space-y-4 text-center">
           <div className="flex justify-center">
-            <div className="p-4 rounded-full bg-primary/10">
-              <Building2 className="w-12 h-12 text-primary" />
-            </div>
+            <img src={mooyaLogo} alt="Mooya Wireless" className="w-24 h-24" />
           </div>
           <div>
             <CardTitle className="text-2xl">Mooya EMPCare</CardTitle>
