@@ -57,6 +57,9 @@ export const usersRelations = relations(users, ({ many }) => ({
   correctionRequests: many(correctionRequests),
 }));
 
+export type User = typeof users.$inferSelect;
+export type UserRole = User["role"];
+
 // Employee types table
 export const employeeTypes = pgTable("employee_types", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
