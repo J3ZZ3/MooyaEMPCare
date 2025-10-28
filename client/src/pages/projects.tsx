@@ -227,7 +227,7 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
     editForm.reset({
       name: project.name,
       location: project.location || "",
-      budget: project.budget || "",
+      budget: project.budget ? String(project.budget) : "",
       status: project.status,
       createdBy: project.createdBy,
     });
@@ -416,11 +416,17 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
                     <FormLabel>Budget (ZAR)</FormLabel>
                     <FormControl>
                       <Input
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         placeholder="e.g., 5000000"
                         {...field}
                         value={field.value || ""}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value === "" || /^\d*\.?\d*$/.test(value)) {
+                            field.onChange(value);
+                          }
+                        }}
                         data-testid="input-project-budget"
                       />
                     </FormControl>
@@ -527,11 +533,17 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
                     <FormLabel>Budget (ZAR)</FormLabel>
                     <FormControl>
                       <Input
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         placeholder="e.g., 5000000"
                         {...field}
                         value={field.value || ""}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value === "" || /^\d*\.?\d*$/.test(value)) {
+                            field.onChange(value);
+                          }
+                        }}
                         data-testid="input-edit-project-budget"
                       />
                     </FormControl>
