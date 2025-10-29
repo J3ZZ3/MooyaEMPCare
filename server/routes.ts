@@ -698,36 +698,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (data.status === "submitted") {
         const period = await storage.getPaymentPeriod(req.params.id);
         if (period) {
-          // Convert dates to strings (they might already be Date objects or strings from DB)
-          const startDateStr = period.startDate instanceof Date 
-            ? period.startDate.toISOString().split('T')[0]
-            : period.startDate.toString().split('T')[0];
-          const endDateStr = period.endDate instanceof Date
-            ? period.endDate.toISOString().split('T')[0]
-            : period.endDate.toString().split('T')[0];
+          // Check if entries already exist (idempotency - don't recreate if already submitted)
+          const existingEntries = await storage.getPaymentPeriodEntries(req.params.id);
           
-          // Fetch all work logs for this project in the date range
-          const workLogs = await storage.getWorkLogsByDateRange(
-            period.projectId,
-            startDateStr,
-            endDateStr
-          );
-          
-          // Aggregate work logs by labourer
-          const labourerEarnings = new Map<string, number>();
-          for (const log of workLogs) {
-            const current = labourerEarnings.get(log.labourerId) || 0;
-            labourerEarnings.set(log.labourerId, current + Number(log.totalEarnings));
-          }
-          
-          // Create payment period entries for each labourer
-          let totalAmount = 0;
-          for (const [labourerId, totalEarnings] of labourerEarnings.entries()) {
-            // Check if entry already exists to avoid duplicates
-            const existingEntries = await storage.getPaymentPeriodEntries(req.params.id);
-            const alreadyExists = existingEntries.some(e => e.labourerId === labourerId);
+          if (existingEntries.length === 0) {
+            // No entries exist yet - create them from work logs
+            // Convert dates to strings (handle both Date objects and strings from DB)
+            const startDate: any = period.startDate;
+            const endDate: any = period.endDate;
+            const startDateStr = startDate instanceof Date 
+              ? startDate.toISOString().split('T')[0]
+              : String(startDate).split('T')[0];
+            const endDateStr = endDate instanceof Date
+              ? endDate.toISOString().split('T')[0]
+              : String(endDate).split('T')[0];
             
-            if (!alreadyExists) {
+            // Fetch all work logs for this project in the date range
+            const workLogs = await storage.getWorkLogsByDateRange(
+              period.projectId,
+              startDateStr,
+              endDateStr
+            );
+            
+            // Aggregate work logs by labourer
+            const labourerEarnings = new Map<string, number>();
+            for (const log of workLogs) {
+              const current = labourerEarnings.get(log.labourerId) || 0;
+              labourerEarnings.set(log.labourerId, current + Number(log.totalEarnings));
+            }
+            
+            // Create payment period entries for each labourer
+            let totalAmount = 0;
+            for (const [labourerId, totalEarnings] of Array.from(labourerEarnings.entries())) {
               await storage.createPaymentPeriodEntry({
                 periodId: req.params.id,
                 labourerId,
@@ -737,10 +739,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
               });
               totalAmount += totalEarnings;
             }
-          }
-          
-          // Update the payment period's totalAmount field
-          if (totalAmount > 0) {
+            
+            // Update the payment period's totalAmount field
+            if (totalAmount > 0) {
+              data.totalAmount = totalAmount.toString();
+            }
+          } else {
+            // Entries already exist - calculate total from existing entries
+            const totalAmount = existingEntries.reduce((sum, e) => sum + Number(e.totalEarnings), 0);
             data.totalAmount = totalAmount.toString();
           }
         }

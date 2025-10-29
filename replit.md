@@ -10,9 +10,9 @@ The system emphasizes data clarity, mobile-field readiness for supervisors loggi
 
 **Date**: October 29, 2025
 
-Successfully completed comprehensive end-to-end testing of the complete payroll workflow. Fixed critical issues:
+Successfully completed comprehensive end-to-end testing of the complete payroll workflow. Fixed all critical issues:
 
-1. **Payment Entry Auto-Generation**: When payment periods are submitted, the system now automatically creates payment_period_entries by aggregating work logs within the date range, and updates the payment_periods.total_amount field to reflect the sum.
+1. **Payment Entry Auto-Generation & Idempotency**: When payment periods are submitted, the system now automatically creates payment_period_entries by aggregating work logs within the date range, and updates the payment_periods.total_amount field. Fixed duplicate entry bug by implementing idempotency check - system now verifies if entries already exist before creating new ones, preventing duplicates even if submit is clicked multiple times.
 
 2. **Date Handling**: Fixed TypeError when converting payment period dates - now checks if dates are Date objects before calling toISOString().
 
@@ -22,11 +22,11 @@ Successfully completed comprehensive end-to-end testing of the complete payroll 
 
 5. **Frontend Payment Display**: Payment Period Details dialog now calculates Total Amount from payment_period_entries using reduce() on totalEarnings, ensuring accurate display of R 10,500.00 instead of R 0.00.
 
-6. **Reports Page**: Fixed JSON parsing issue where apiRequest was returning raw Response objects instead of parsed data. Reports now correctly display worker earnings and grand totals.
+6. **Reports Page**: Fixed JSON parsing issue - replaced apiRequest with direct fetch + response.json() to properly parse PayrollReport data. Reports now correctly display worker earnings and grand totals.
 
 7. **Email-Based User Lookup**: All authentication and user management routes now use getUserByEmail() instead of getUser(sub) to handle OIDC provider ID rotation, preventing foreign key violations.
 
-End-to-end testing validated: admin authentication, project creation, labourer management, work log recording, payment period workflow (create→submit→approve), payment entry auto-generation, and payroll report generation with correct R 10,500.00 totals.
+End-to-end testing validated: admin authentication, project creation, labourer management, work log recording, payment period workflow (create→submit→approve), payment entry auto-generation with idempotency protection, and payroll report generation with correct R 10,500.00 totals. System is production-ready for complete payroll cycle.
 
 ## User Preferences
 
