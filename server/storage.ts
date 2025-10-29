@@ -105,18 +105,36 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
-    const [user] = await db
-      .insert(users)
-      .values(userData)
-      .onConflictDoUpdate({
-        target: users.id,
-        set: {
+    // First, check if a user with this email already exists
+    // Note: email is required in our auth flow, but the schema allows null
+    if (!userData.email) {
+      throw new Error("Email is required for user upsert");
+    }
+
+    const [existingUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, userData.email as string));
+
+    if (existingUser) {
+      // Update existing user (including potentially updating their id)
+      const [updated] = await db
+        .update(users)
+        .set({
           ...userData,
           updatedAt: new Date(),
-        },
-      })
-      .returning();
-    return user;
+        })
+        .where(eq(users.email, userData.email as string))
+        .returning();
+      return updated;
+    } else {
+      // Insert new user
+      const [newUser] = await db
+        .insert(users)
+        .values(userData)
+        .returning();
+      return newUser;
+    }
   }
 
   async getUsersByRole(role: string): Promise<User[]> {
