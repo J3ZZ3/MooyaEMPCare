@@ -378,6 +378,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/labourers/available", isAuthenticated, async (req, res) => {
+    try {
+      const labourers = await storage.getAvailableLabourers();
+      res.json(labourers);
+    } catch (error) {
+      console.error("Error fetching available labourers:", error);
+      res.status(500).json({ message: "Failed to fetch available labourers" });
+    }
+  });
+
   app.get("/api/labourers/:id", isAuthenticated, async (req, res) => {
     try {
       const labourer = await storage.getLabourer(req.params.id);
@@ -411,6 +421,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error updating labourer:", error);
       res.status(400).json({ message: error.message || "Failed to update labourer" });
+    }
+  });
+
+  app.post("/api/projects/:projectId/labourers", isAuthenticated, requireRole("super_admin", "admin", "project_manager", "supervisor", "project_admin"), async (req, res) => {
+    try {
+      const { labourerIds } = req.body;
+      
+      if (!labourerIds || !Array.isArray(labourerIds) || labourerIds.length === 0) {
+        return res.status(400).json({ message: "labourerIds array is required" });
+      }
+      
+      await storage.assignLabourersToProject(labourerIds, req.params.projectId);
+      res.status(200).json({ message: "Labourers assigned successfully" });
+    } catch (error: any) {
+      console.error("Error assigning labourers:", error);
+      res.status(400).json({ message: error.message || "Failed to assign labourers" });
     }
   });
 
