@@ -41,6 +41,12 @@ The application uses a modern React-based single-page application (SPA) architec
 
 **API Design**: RESTful endpoints organized by resource type (users, projects, labourers, payment-periods, work-logs). Authentication is required for all endpoints except login/callback routes.
 
+**Labourer Assignment Workflow**: The system supports assigning existing labourers to projects through a checklist interface:
+- GET /api/labourers/available - Returns labourers not currently assigned to active projects (either unassigned or on completed/on-hold projects)
+- POST /api/projects/:projectId/labourers - Batch assigns multiple labourers to a project
+- Project details page shows a dialog with checkboxes for selecting available labourers
+- After assignment, labourers are automatically removed from the available pool for other active projects
+
 **User Management**: System administrators can manage user roles through the Users page:
 - GET /api/users - Lists all system users (admin/super_admin only)
 - PUT /api/users/:id - Updates user role (admin/super_admin only)
