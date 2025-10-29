@@ -41,6 +41,7 @@ const menuItems = {
     { title: "Projects", icon: Briefcase, path: "/projects" },
     { title: "Pay Rates", icon: DollarSign, path: "/pay-rates" },
     { title: "Labourers", icon: Users, path: "/labourers" },
+    { title: "Daily Work", icon: FileText, path: "/work-log" },
     { title: "Users", icon: Users, path: "/users" },
     { title: "Employee Types", icon: FileText, path: "/employee-types" },
   ],
