@@ -47,6 +47,13 @@ The application uses a modern React-based single-page application (SPA) architec
 - Project details page shows a dialog with checkboxes for selecting available labourers
 - After assignment, labourers are automatically removed from the available pool for other active projects
 
+**Bulk Labourer Entry**: The system provides a dedicated interface for creating multiple labourers at once:
+- POST /api/labourers/bulk - Creates multiple labourers in a single transaction
+- Dedicated page (/bulk-labourers) with project selection and data entry options
+- CSV import functionality for pasting spreadsheet data
+- Manual row-by-row entry with full validation
+- Available to super_admin, admin, project_manager, supervisor, and project_admin roles
+
 **User Management**: System administrators can manage user roles through the Users page:
 - GET /api/users - Lists all system users (admin/super_admin only)
 - PUT /api/users/:id - Updates user role (admin/super_admin only)
