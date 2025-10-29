@@ -71,24 +71,25 @@ async function upsertUser(
   const existingUser = await storage.getUserByEmail(claims["email"]);
   
   // Determine role priority:
-  // 1. Super Admin for kholofelo@mooya.co.za (always)
-  // 2. Role from OIDC claims if present (for testing - always overrides)
-  // 3. Existing user role (if no OIDC role claim)
+  // 1. Super Admin for kholofelo@mooya.co.za (ALWAYS - cannot be overridden)
+  // 2. Role from OIDC claims if present (ALWAYS overrides existing role - for testing)
+  // 3. Existing user role (if user exists and no OIDC role claim)
   // 4. Default based on email domain:
   //    - @xnext.co.za → admin
   //    - @mooya.co.za, @mooyawireless.co.za → supervisor
   let role: string;
   
   if (claims["email"] === "kholofelo@mooya.co.za") {
+    // kholofelo is always super_admin, cannot be overridden
     role = "super_admin";
   } else if (claims["role"]) {
-    // OIDC role claim always takes precedence (for testing)
+    // OIDC role claim ALWAYS overrides any existing role (for testing and role changes)
     role = claims["role"];
   } else if (existingUser?.role) {
     // Keep existing role if no OIDC role claim
     role = existingUser.role;
   } else {
-    // Default role based on email domain
+    // New user with no OIDC role claim - assign default based on email domain
     if (claims["email"]?.endsWith("@xnext.co.za")) {
       role = "admin";
     } else {
@@ -214,11 +215,12 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
 export function requireRole(...allowedRoles: string[]): RequestHandler {
   return async (req, res, next) => {
     const user = req.user as any;
-    if (!user?.claims?.sub) {
+    if (!user?.claims?.email) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const dbUser = await storage.getUser(user.claims.sub);
+    // Look up by email (not sub) to handle OIDC sub rotation
+    const dbUser = await storage.getUserByEmail(user.claims.email);
     if (!dbUser || !allowedRoles.includes(dbUser.role)) {
       return res.status(403).json({ message: "Forbidden: Insufficient permissions" });
     }

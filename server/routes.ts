@@ -24,8 +24,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============= Authentication Routes =============
   app.get('/api/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
+      // Look up by email (not sub) to handle OIDC sub rotation
+      const userEmail = req.user.claims.email;
+      const user = await storage.getUserByEmail(userEmail);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
       res.json(user);
     } catch (error) {
       console.error("Error fetching user:", error);
@@ -35,8 +39,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
+      // Look up by email (not sub) to handle OIDC sub rotation
+      const userEmail = req.user.claims.email;
+      const user = await storage.getUserByEmail(userEmail);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
       res.json(user);
     } catch (error) {
       console.error("Error fetching user:", error);
@@ -211,19 +219,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============= Project Routes =============
   app.get("/api/projects", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
+      // Look up by email (not sub) to handle OIDC sub rotation
+      const userEmail = req.user.claims.email;
+      const user = await storage.getUserByEmail(userEmail);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
       
       let projects: any[] = [];
-      if (user?.role === "super_admin" || user?.role === "admin") {
+      if (user.role === "super_admin" || user.role === "admin") {
         projects = await storage.getProjects();
-      } else if (user?.role === "project_manager") {
-        projects = await storage.getProjectsByManager(userId);
-      } else if (user?.role === "supervisor") {
-        projects = await storage.getProjectsBySupervisor(userId);
+      } else if (user.role === "project_manager") {
+        projects = await storage.getProjectsByManager(user.id);
+      } else if (user.role === "supervisor") {
+        projects = await storage.getProjectsBySupervisor(user.id);
       } else {
         // Labourers can only see their assigned project
-        const labourer = await storage.getLabourerByUserId(userId);
+        const labourer = await storage.getLabourerByUserId(user.id);
         if (labourer) {
           const project = await storage.getProject(labourer.projectId);
           projects = project ? [project] : [];
@@ -272,7 +285,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/projects", isAuthenticated, requireRole("super_admin", "admin"), async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      // Use dbUser.id (attached by requireRole middleware)
+      const userId = req.dbUser.id;
       const data = insertProjectSchema.parse({ ...req.body, createdBy: userId });
       const project = await storage.createProject(data);
       
@@ -403,7 +417,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/labourers", isAuthenticated, requireRole("super_admin", "admin", "project_manager", "supervisor", "project_admin"), async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      // Use dbUser.id (attached by requireRole middleware)
+      const userId = req.dbUser.id;
       const data = insertLabourerSchema.parse({ ...req.body, createdBy: userId });
       const labourer = await storage.createLabourer(data);
       res.status(201).json(labourer);
@@ -415,7 +430,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/labourers/bulk", isAuthenticated, requireRole("super_admin", "admin", "project_manager", "supervisor", "project_admin"), async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      // Use dbUser.id (attached by requireRole middleware)
+      const userId = req.dbUser.id;
       const { labourers: labourersData } = req.body;
       
       if (!labourersData || !Array.isArray(labourersData) || labourersData.length === 0) {
@@ -568,7 +584,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/pay-rates", isAuthenticated, requireRole("super_admin", "admin", "project_manager"), async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      // Use dbUser.id (attached by requireRole middleware)
+      const userId = req.dbUser.id;
       const data = insertPayRateSchema.parse({ ...req.body, createdBy: userId });
       const rate = await storage.createPayRate(data);
       res.status(201).json(rate);
@@ -606,7 +623,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/work-logs", isAuthenticated, requireRole("super_admin", "admin", "project_manager", "supervisor", "project_admin"), async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      // Use dbUser.id (attached by requireRole middleware)
+      const userId = req.dbUser.id;
       const data = insertWorkLogSchema.parse({ ...req.body, recordedBy: userId });
       const log = await storage.createWorkLog(data);
       res.status(201).json(log);
@@ -675,6 +693,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/payment-periods/:id", isAuthenticated, requireRole("super_admin", "admin", "project_manager"), async (req, res) => {
     try {
       const data = insertPaymentPeriodSchema.partial().parse(req.body);
+      
+      // If status is being changed to "submitted", generate payment entries from work logs
+      if (data.status === "submitted") {
+        const period = await storage.getPaymentPeriod(req.params.id);
+        if (period) {
+          // Convert dates to strings (they might already be Date objects or strings from DB)
+          const startDateStr = period.startDate instanceof Date 
+            ? period.startDate.toISOString().split('T')[0]
+            : period.startDate.toString().split('T')[0];
+          const endDateStr = period.endDate instanceof Date
+            ? period.endDate.toISOString().split('T')[0]
+            : period.endDate.toString().split('T')[0];
+          
+          // Fetch all work logs for this project in the date range
+          const workLogs = await storage.getWorkLogsByDateRange(
+            period.projectId,
+            startDateStr,
+            endDateStr
+          );
+          
+          // Aggregate work logs by labourer
+          const labourerEarnings = new Map<string, number>();
+          for (const log of workLogs) {
+            const current = labourerEarnings.get(log.labourerId) || 0;
+            labourerEarnings.set(log.labourerId, current + Number(log.totalEarnings));
+          }
+          
+          // Create payment period entries for each labourer
+          let totalAmount = 0;
+          for (const [labourerId, totalEarnings] of labourerEarnings.entries()) {
+            // Check if entry already exists to avoid duplicates
+            const existingEntries = await storage.getPaymentPeriodEntries(req.params.id);
+            const alreadyExists = existingEntries.some(e => e.labourerId === labourerId);
+            
+            if (!alreadyExists) {
+              await storage.createPaymentPeriodEntry({
+                periodId: req.params.id,
+                labourerId,
+                daysWorked: 0, // Can be calculated later if needed
+                totalMeters: "0", // Can be calculated later if needed
+                totalEarnings: totalEarnings.toString(),
+              });
+              totalAmount += totalEarnings;
+            }
+          }
+          
+          // Update the payment period's totalAmount field
+          if (totalAmount > 0) {
+            data.totalAmount = totalAmount.toString();
+          }
+        }
+      }
+      
       const period = await storage.updatePaymentPeriod(req.params.id, data);
       res.json(period);
     } catch (error: any) {
@@ -710,8 +781,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/correction-requests", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const data = insertCorrectionRequestSchema.parse({ ...req.body, requestedBy: userId });
+      // Look up by email (not sub) to handle OIDC sub rotation
+      const userEmail = req.user.claims.email;
+      const user = await storage.getUserByEmail(userEmail);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      const data = insertCorrectionRequestSchema.parse({ ...req.body, requestedBy: user.id });
       const request = await storage.createCorrectionRequest(data);
       res.status(201).json(request);
     } catch (error: any) {
@@ -722,7 +798,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/correction-requests/:id", isAuthenticated, requireRole("super_admin", "admin", "project_manager"), async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      // Use dbUser.id (attached by requireRole middleware)
+      const userId = req.dbUser.id;
       const data = insertCorrectionRequestSchema.partial().parse({ 
         ...req.body, 
         reviewedBy: userId,

@@ -482,7 +482,9 @@ export default function PaymentsPage({ user }: PaymentsPageProps) {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Total Amount</p>
-                  <p className="text-2xl font-bold">R {parseFloat(selectedPeriod.totalAmount).toFixed(2)}</p>
+                  <p className="text-2xl font-bold">
+                    R {entries ? entries.reduce((sum, entry) => sum + parseFloat(entry.totalEarnings), 0).toFixed(2) : "0.00"}
+                  </p>
                 </div>
               </div>
 

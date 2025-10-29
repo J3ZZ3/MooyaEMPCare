@@ -73,10 +73,15 @@ export default function Reports({ user }: ReportsProps) {
 
     try {
       setIsGenerating(true);
-      const data = await apiRequest<PayrollReport>(
-        "GET",
+      const response = await fetch(
         `/api/reports/payroll?projectId=${selectedProjectId}&startDate=${startDate}&endDate=${endDate}`
       );
+      
+      if (!response.ok) {
+        throw new Error("Failed to generate report");
+      }
+      
+      const data: PayrollReport = await response.json();
       setReport(data);
       toast({
         title: "Report Generated",
