@@ -72,7 +72,9 @@ async function upsertUser(
   // 1. Super Admin for kholofelo@mooya.co.za (always)
   // 2. Role from OIDC claims if present (for testing - always overrides)
   // 3. Existing user role (if no OIDC role claim)
-  // 4. Default to supervisor for new users
+  // 4. Default based on email domain:
+  //    - @xnext.co.za → admin
+  //    - @mooya.co.za, @mooyawireless.co.za → supervisor
   let role: string;
   
   if (claims["email"] === "kholofelo@mooya.co.za") {
@@ -84,8 +86,12 @@ async function upsertUser(
     // Keep existing role if no OIDC role claim
     role = existingUser.role;
   } else {
-    // Default new users to supervisor
-    role = "supervisor";
+    // Default role based on email domain
+    if (claims["email"]?.endsWith("@xnext.co.za")) {
+      role = "admin";
+    } else {
+      role = "supervisor";
+    }
   }
   
   await storage.upsertUser({
