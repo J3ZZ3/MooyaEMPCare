@@ -173,18 +173,21 @@ export default function BulkLabourers({ user }: BulkLabourersProps) {
 
       await apiRequest("POST", "/api/labourers/bulk", { labourers: labourersData });
 
-      toast({
-        title: "Success",
-        description: `Successfully created ${labourers.length} labourers`,
-      });
-
-      // Clear form
+      const count = labourers.length;
+      const projectId = selectedProjectId;
+      
+      // Clear form first
       setLabourers([]);
       setSelectedProjectId("");
+
+      toast({
+        title: "Success",
+        description: `Successfully created ${count} labourers`,
+      });
       
       // Invalidate queries
       await queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
-      await queryClient.invalidateQueries({ queryKey: [`/api/projects/${selectedProjectId}/labourers`] });
+      await queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/labourers`] });
     } catch (error: any) {
       toast({
         title: "Error",
