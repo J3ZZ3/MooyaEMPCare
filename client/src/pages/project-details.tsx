@@ -73,7 +73,7 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
   });
 
   const { data: labourers = [], isLoading: labourersLoading } = useQuery<Labourer[]>({
-    queryKey: [`/api/labourers?projectId=${projectId}`],
+    queryKey: [`/api/projects/${projectId}/labourers`],
     enabled: !!projectId,
   });
 
@@ -92,7 +92,7 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
   });
 
   const { data: workLogs = [] } = useQuery<any[]>({
-    queryKey: [`/api/work-logs?projectId=${projectId}`],
+    queryKey: [`/api/projects/${projectId}/work-logs`],
     enabled: !!projectId,
   });
 
@@ -118,14 +118,14 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
 
   const handleAddLabourer = async (data: LabourerFormData) => {
     try {
-      await apiRequest("/api/labourers", "POST", data);
+      await apiRequest("POST", "/api/labourers", data);
 
       toast({
         title: "Success",
         description: "Labourer added successfully",
       });
 
-      queryClient.invalidateQueries({ queryKey: [`/api/labourers?projectId=${projectId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/labourers`] });
       setAddLabourerDialogOpen(false);
       addLabourerForm.reset({
         projectId,
@@ -182,9 +182,9 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
 
   const canManage = user.role === "super_admin" || user.role === "admin" || user.role === "project_manager" || user.role === "project_admin";
 
-  const totalMetersOpened = workLogs.reduce((sum: number, log: any) => sum + (Number(log.openMeters) || 0), 0);
-  const totalMetersClosed = workLogs.reduce((sum: number, log: any) => sum + (Number(log.closeMeters) || 0), 0);
-  const totalEarnings = workLogs.reduce((sum: number, log: any) => sum + (Number(log.totalAmount) || 0), 0);
+  const totalMetersOpened = workLogs.reduce((sum: number, log: any) => sum + (Number(log.openTrenchingMeters) || 0), 0);
+  const totalMetersClosed = workLogs.reduce((sum: number, log: any) => sum + (Number(log.closeTrenchingMeters) || 0), 0);
+  const totalEarnings = workLogs.reduce((sum: number, log: any) => sum + (Number(log.totalEarnings) || 0), 0);
 
   return (
     <div className="space-y-6">
