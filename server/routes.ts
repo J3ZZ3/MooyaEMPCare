@@ -465,6 +465,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============= Reports Routes =============
+  app.get("/api/reports/payroll", isAuthenticated, async (req, res) => {
+    try {
+      const { projectId, startDate, endDate } = req.query;
+
+      if (!projectId || !startDate || !endDate) {
+        return res.status(400).json({ message: "projectId, startDate, and endDate are required" });
+      }
+
+      const project = await storage.getProject(projectId as string);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      // Get all work logs for the project within the date range
+      const workLogs = await storage.getWorkLogsByDateRange(
+        projectId as string,
+        startDate as string,
+        endDate as string
+      );
+
+      // Get all labourers in the project
+      const labourers = await storage.getProjectLabourers(projectId as string);
+
+      // Get pay rates for the project
+      const payRates = await storage.getPayRates(projectId as string);
+
+      // Aggregate work logs by labourer
+      const labourerTotals = new Map<string, {
+        labourerId: string;
+        labourerName: string;
+        idNumber: string;
+        totalOpenMeters: number;
+        totalCloseMeters: number;
+        totalEarnings: number;
+      }>();
+
+      workLogs.forEach((log: any) => {
+        const existing = labourerTotals.get(log.labourerId) || {
+          labourerId: log.labourerId,
+          labourerName: "",
+          idNumber: "",
+          totalOpenMeters: 0,
+          totalCloseMeters: 0,
+          totalEarnings: 0,
+        };
+
+        existing.totalOpenMeters += parseFloat(log.openTrenchingMeters || "0");
+        existing.totalCloseMeters += parseFloat(log.closeTrenchingMeters || "0");
+        existing.totalEarnings += parseFloat(log.totalEarnings || "0");
+
+        labourerTotals.set(log.labourerId, existing);
+      });
+
+      // Enrich with labourer details
+      const entries = Array.from(labourerTotals.values()).map(entry => {
+        const labourer = labourers.find((l: any) => l.id === entry.labourerId);
+        return {
+          ...entry,
+          labourerName: labourer ? `${labourer.firstName} ${labourer.surname}` : "Unknown",
+          idNumber: labourer?.idNumber || "",
+        };
+      });
+
+      // Calculate grand total
+      const grandTotal = entries.reduce((sum, entry) => sum + entry.totalEarnings, 0);
+
+      // Get average rates (simplified - using first rate found for each category)
+      const openRate = payRates.find((r: any) => r.category === "open_trenching");
+      const closeRate = payRates.find((r: any) => r.category === "close_trenching");
+
+      const report = {
+        projectId: project.id,
+        projectName: project.name,
+        startDate,
+        endDate,
+        paymentPeriod: project.paymentPeriod,
+        openRate: openRate ? parseFloat(openRate.amount) : 0,
+        closeRate: closeRate ? parseFloat(closeRate.amount) : 0,
+        entries,
+        grandTotal,
+      };
+
+      res.json(report);
+    } catch (error: any) {
+      console.error("Error generating payroll report:", error);
+      res.status(500).json({ message: error.message || "Failed to generate report" });
+    }
+  });
+
   // ============= Pay Rate Routes =============
   app.get("/api/projects/:projectId/pay-rates", isAuthenticated, async (req, res) => {
     try {

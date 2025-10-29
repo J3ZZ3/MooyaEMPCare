@@ -13,7 +13,7 @@ import ProjectsPage from "@/pages/projects";
 import ProjectDetails from "@/pages/project-details";
 import PayRatesPage from "@/pages/pay-rates";
 import LabourersPage from "@/pages/labourers";
-import BulkLabourers from "@/pages/bulk-labourers";
+import Reports from "@/pages/reports";
 import WorkLogPage from "@/pages/work-log";
 import NotFound from "@/pages/not-found";
 import { Button } from "@/components/ui/button";
@@ -86,7 +86,7 @@ function AuthenticatedApp({ user }: { user: User }) {
                 <Route path="/projects" component={() => <ProjectsPage user={user} />} />
                 <Route path="/pay-rates" component={() => <PayRatesPage user={user} />} />
                 <Route path="/labourers" component={LabourersPage} />
-                <Route path="/bulk-labourers" component={() => <BulkLabourers user={user} />} />
+                <Route path="/reports" component={() => <Reports user={user} />} />
                 <Route path="/work-log" component={() => <WorkLogPage user={user} />} />
                 <Route component={NotFound} />
               </Switch>

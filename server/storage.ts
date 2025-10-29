@@ -76,6 +76,7 @@ export interface IStorage {
   
   // Work Log operations
   getWorkLogs(projectId: string, startDate?: Date, endDate?: Date): Promise<WorkLog[]>;
+  getWorkLogsByDateRange(projectId: string, startDate: string, endDate: string): Promise<WorkLog[]>;
   getWorkLogsByLabourer(labourerId: string): Promise<WorkLog[]>;
   getWorkLog(id: string): Promise<WorkLog | undefined>;
   createWorkLog(data: InsertWorkLog): Promise<WorkLog>;
@@ -400,6 +401,20 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(workLogs)
       .where(eq(workLogs.projectId, projectId))
+      .orderBy(desc(workLogs.workDate));
+  }
+
+  async getWorkLogsByDateRange(projectId: string, startDate: string, endDate: string): Promise<WorkLog[]> {
+    return db
+      .select()
+      .from(workLogs)
+      .where(
+        and(
+          eq(workLogs.projectId, projectId),
+          gte(workLogs.workDate, startDate),
+          lte(workLogs.workDate, endDate)
+        )
+      )
       .orderBy(desc(workLogs.workDate));
   }
 
