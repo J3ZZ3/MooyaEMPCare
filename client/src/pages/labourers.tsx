@@ -70,7 +70,7 @@ export default function LabourersPage() {
   });
 
   // Fetch employee types
-  const { data: employeeTypes } = useQuery<EmployeeType[]>({
+  const { data: employeeTypes, isLoading: isLoadingEmployeeTypes } = useQuery<EmployeeType[]>({
     queryKey: ["/api/employee-types"],
   });
 
@@ -267,18 +267,24 @@ export default function LabourersPage() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Employee Type *</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingEmployeeTypes}>
                             <FormControl>
                               <SelectTrigger data-testid="select-employee-type">
-                                <SelectValue placeholder="Select employee type" />
+                                <SelectValue placeholder={isLoadingEmployeeTypes ? "Loading..." : "Select employee type"} />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {employeeTypes?.map((type) => (
-                                <SelectItem key={type.id} value={type.id}>
-                                  {type.name}
-                                </SelectItem>
-                              ))}
+                              {isLoadingEmployeeTypes ? (
+                                <div className="p-2 text-sm text-muted-foreground">Loading employee types...</div>
+                              ) : employeeTypes && employeeTypes.length > 0 ? (
+                                employeeTypes.map((type) => (
+                                  <SelectItem key={type.id} value={type.id}>
+                                    {type.name}
+                                  </SelectItem>
+                                ))
+                              ) : (
+                                <div className="p-2 text-sm text-muted-foreground">No employee types found</div>
+                              )}
                             </SelectContent>
                           </Select>
                           <FormMessage />

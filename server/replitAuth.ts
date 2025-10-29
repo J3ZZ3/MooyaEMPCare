@@ -68,10 +68,24 @@ async function upsertUser(
   const userId = claims["sub"];
   const existingUser = await storage.getUser(userId);
   
-  // Assign Super Admin role to kholofelo@mooya.co.za
-  let role: string = existingUser?.role || "labourer";
+  // Determine role priority:
+  // 1. Super Admin for kholofelo@mooya.co.za (always)
+  // 2. Role from OIDC claims if present (for testing - always overrides)
+  // 3. Existing user role (if no OIDC role claim)
+  // 4. Default to supervisor for new users
+  let role: string;
+  
   if (claims["email"] === "kholofelo@mooya.co.za") {
     role = "super_admin";
+  } else if (claims["role"]) {
+    // OIDC role claim always takes precedence (for testing)
+    role = claims["role"];
+  } else if (existingUser?.role) {
+    // Keep existing role if no OIDC role claim
+    role = existingUser.role;
+  } else {
+    // Default new users to supervisor
+    role = "supervisor";
   }
   
   await storage.upsertUser({
