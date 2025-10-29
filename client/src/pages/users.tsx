@@ -108,6 +108,9 @@ export default function UsersPage({ user }: UsersPageProps) {
   });
 
   const filteredUsers = users?.filter((user) => {
+    // Exclude labourers - they are data entities, not system users
+    if (user.role === "labourer") return false;
+    
     const matchesSearch =
       searchQuery === "" ||
       user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -171,7 +174,6 @@ export default function UsersPage({ user }: UsersPageProps) {
                 <SelectItem value="project_manager">Project Manager</SelectItem>
                 <SelectItem value="supervisor">Supervisor</SelectItem>
                 <SelectItem value="project_admin">Project Administrator</SelectItem>
-                <SelectItem value="labourer">Labourer</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -262,7 +264,6 @@ export default function UsersPage({ user }: UsersPageProps) {
                   <SelectItem value="project_manager">Project Manager</SelectItem>
                   <SelectItem value="supervisor">Supervisor</SelectItem>
                   <SelectItem value="project_admin">Project Administrator</SelectItem>
-                  <SelectItem value="labourer">Labourer</SelectItem>
                 </SelectContent>
               </Select>
             </div>

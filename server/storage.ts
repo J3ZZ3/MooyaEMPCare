@@ -118,7 +118,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllUsers(): Promise<User[]> {
-    return db.select().from(users).orderBy(desc(users.createdAt));
+    // Exclude labourers - they are data entities, not system users
+    return db.select().from(users).where(sql`role != 'labourer'`).orderBy(desc(users.createdAt));
   }
 
   async updateUserRole(id: string, role: string): Promise<User> {
