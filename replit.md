@@ -33,7 +33,7 @@ The application uses a modern React-based single-page application (SPA) architec
 
 **Routing**: Wouter for lightweight client-side routing without the overhead of React Router.
 
-**Component Architecture**: Follows atomic design principles with reusable components organized by function (ui/, examples/, role-specific dashboards). Each dashboard component is tailored to specific user roles (SupervisorDashboard, ProjectManagerDashboard, LabourerDashboard).
+**Component Architecture**: Follows atomic design principles with reusable components organized by function (ui/, examples/, role-specific dashboards). Each dashboard component is tailored to specific user roles (SupervisorDashboard, ProjectManagerDashboard, AdminDashboard, etc.). Note: Labourers do not have system access or dashboards - they are managed as data entities.
 
 ### Backend Architecture
 
@@ -49,13 +49,14 @@ The application uses a modern React-based single-page application (SPA) architec
 
 **Session Management**: PostgreSQL-backed session store using connect-pg-simple, providing persistent sessions across server restarts with 7-day TTL.
 
-**Authorization**: Role-based access control (RBAC) with six user roles:
+**Authorization**: Role-based access control (RBAC) with system user roles:
 - super_admin: Full system access
 - admin: Administrative access without system configuration
 - project_manager: Project oversight and payment approvals
 - supervisor: Daily work logging and labourer management
 - project_admin: Project-specific administration
-- labourer: Personal work history and earnings view
+
+**Important**: Labourers are NOT system users and do not have login credentials or dashboards. They are managed as data entities within the system. Project Managers, Administrators, and Project Administrators can view and generate reports for labourers, but labourers themselves do not access the system directly.
 
 Middleware functions (`isAuthenticated`, `requireRole`) enforce authorization at the route level.
 
