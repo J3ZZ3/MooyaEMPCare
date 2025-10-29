@@ -20,43 +20,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, ArrowLeft, UserPlus, MapPin, Calendar, DollarSign } from "lucide-react";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { insertLabourerSchema } from "@shared/schema";
 import type { Project, User, Labourer, EmployeeType } from "@shared/schema";
 import { format } from "date-fns";
-import { validateSAId } from "@/lib/saIdValidation";
-
-const labourerFormSchema = insertLabourerSchema
-  .omit({ createdBy: true, userId: true })
-  .extend({
-    idNumber: z.string().refine(validateSAId, {
-      message: "Invalid South African ID number",
-    }),
-  });
-
-type LabourerFormData = z.infer<typeof labourerFormSchema>;
 
 interface ProjectDetailsProps {
   user: User;
@@ -67,6 +37,7 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
   const projectId = params.id as string;
   const { toast } = useToast();
   const [addLabourerDialogOpen, setAddLabourerDialogOpen] = useState(false);
+  const [selectedLabourerIds, setSelectedLabourerIds] = useState<string[]>([]);
 
   const { data: project, isLoading: projectLoading } = useQuery<Project>({
     queryKey: [`/api/projects/${projectId}`],
@@ -75,6 +46,11 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
   const { data: labourers = [], isLoading: labourersLoading } = useQuery<Labourer[]>({
     queryKey: [`/api/projects/${projectId}/labourers`],
     enabled: !!projectId,
+  });
+
+  const { data: availableLabourers = [] } = useQuery<Labourer[]>({
+    queryKey: ["/api/labourers/available"],
+    enabled: addLabourerDialogOpen,
   });
 
   const { data: employeeTypes = [] } = useQuery<EmployeeType[]>({
@@ -96,60 +72,45 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
     enabled: !!projectId,
   });
 
-  const addLabourerForm = useForm<LabourerFormData>({
-    resolver: zodResolver(labourerFormSchema),
-    defaultValues: {
-      projectId,
-      employeeTypeId: "",
-      firstName: "",
-      surname: "",
-      idNumber: "",
-      dateOfBirth: "",
-      gender: "",
-      contactNumber: "",
-      email: "",
-      physicalAddress: "",
-      bankName: "",
-      accountNumber: "",
-      accountType: "savings",
-      branchCode: "",
-    },
-  });
+  const handleAssignLabourers = async () => {
+    if (selectedLabourerIds.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please select at least one labourer",
+        variant: "destructive",
+      });
+      return;
+    }
 
-  const handleAddLabourer = async (data: LabourerFormData) => {
     try {
-      await apiRequest("POST", "/api/labourers", data);
+      await apiRequest("POST", `/api/projects/${projectId}/labourers`, {
+        labourerIds: selectedLabourerIds,
+      });
 
       toast({
         title: "Success",
-        description: "Labourer added successfully",
+        description: `${selectedLabourerIds.length} labourer${selectedLabourerIds.length > 1 ? 's' : ''} assigned successfully`,
       });
 
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/labourers`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/labourers/available"] });
       setAddLabourerDialogOpen(false);
-      addLabourerForm.reset({
-        projectId,
-        employeeTypeId: "",
-        firstName: "",
-        surname: "",
-        idNumber: "",
-        dateOfBirth: "",
-        gender: "",
-        contactNumber: "",
-        email: "",
-        physicalAddress: "",
-        bankName: "",
-        accountNumber: "",
-        accountType: "savings",
-        branchCode: "",
-      });
+      setSelectedLabourerIds([]);
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to add labourer",
+        description: error.message || "Failed to assign labourers",
         variant: "destructive",
       });
     }
+  };
+
+  const toggleLabourerSelection = (labourerId: string) => {
+    setSelectedLabourerIds(prev =>
+      prev.includes(labourerId)
+        ? prev.filter(id => id !== labourerId)
+        : [...prev, labourerId]
+    );
   };
 
   if (projectLoading) {
@@ -439,216 +400,64 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={addLabourerDialogOpen} onOpenChange={setAddLabourerDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <Dialog open={addLabourerDialogOpen} onOpenChange={(open) => {
+        setAddLabourerDialogOpen(open);
+        if (!open) setSelectedLabourerIds([]);
+      }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle>Add Labourer to Project</DialogTitle>
+            <DialogTitle>Assign Labourers to Project</DialogTitle>
             <DialogDescription>
-              Add a new labourer to {project.name}
+              Select labourers who are not currently assigned to any active project
             </DialogDescription>
           </DialogHeader>
 
-          <Form {...addLabourerForm}>
-            <form onSubmit={addLabourerForm.handleSubmit(handleAddLabourer)} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={addLabourerForm.control}
-                  name="firstName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>First Name *</FormLabel>
-                      <FormControl>
-                        <Input {...field} data-testid="input-first-name" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={addLabourerForm.control}
-                  name="surname"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Surname *</FormLabel>
-                      <FormControl>
-                        <Input {...field} data-testid="input-surname" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+          <div className="flex-1 overflow-y-auto space-y-2 pr-2">{availableLabourers.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No available labourers to assign
               </div>
-
-              <FormField
-                control={addLabourerForm.control}
-                name="employeeTypeId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Employee Type *</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-employee-type">
-                          <SelectValue placeholder="Select employee type" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {employeeTypes.map((type) => (
-                          <SelectItem key={type.id} value={type.id}>
-                            {type.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={addLabourerForm.control}
-                name="idNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>SA ID Number *</FormLabel>
-                    <FormControl>
-                      <Input {...field} maxLength={13} data-testid="input-id-number" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={addLabourerForm.control}
-                name="dateOfBirth"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Date of Birth *</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} data-testid="input-date-of-birth" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={addLabourerForm.control}
-                  name="contactNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Contact Number *</FormLabel>
-                      <FormControl>
-                        <Input {...field} data-testid="input-contact-number" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={addLabourerForm.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input type="email" {...field} value={field.value || ""} data-testid="input-email" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            ) : (
+              <div className="space-y-2">
+                {availableLabourers.map((labourer) => {
+                  const employeeType = employeeTypes.find(t => t.id === labourer.employeeTypeId);
+                  return (
+                    <div
+                      key={labourer.id}
+                      className="flex items-start space-x-3 p-3 rounded-md border hover-elevate"
+                      data-testid={`labourer-item-${labourer.id}`}
+                    >
+                      <Checkbox
+                        id={labourer.id}
+                        checked={selectedLabourerIds.includes(labourer.id)}
+                        onCheckedChange={() => toggleLabourerSelection(labourer.id)}
+                        data-testid={`checkbox-labourer-${labourer.id}`}
+                      />
+                      <label
+                        htmlFor={labourer.id}
+                        className="flex-1 cursor-pointer text-sm"
+                      >
+                        <div className="font-medium">
+                          {labourer.firstName} {labourer.surname}
+                        </div>
+                        <div className="text-muted-foreground space-y-1 mt-1">
+                          <div>ID: {labourer.idNumber}</div>
+                          <div>Type: {employeeType?.name || 'Unknown'}</div>
+                          <div>Contact: {labourer.contactNumber}</div>
+                        </div>
+                      </label>
+                    </div>
+                  );
+                })}
               </div>
+            )}
+          </div>
 
-              <FormField
-                control={addLabourerForm.control}
-                name="physicalAddress"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Physical Address</FormLabel>
-                    <FormControl>
-                      <Input {...field} value={field.value || ""} data-testid="input-physical-address" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="space-y-3">
-                <h4 className="font-semibold text-sm">Banking Details</h4>
-                
-                <FormField
-                  control={addLabourerForm.control}
-                  name="bankName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Bank Name *</FormLabel>
-                      <FormControl>
-                        <Input {...field} data-testid="input-bank-name" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={addLabourerForm.control}
-                    name="accountNumber"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Account Number *</FormLabel>
-                        <FormControl>
-                          <Input {...field} data-testid="input-account-number" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={addLabourerForm.control}
-                    name="branchCode"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Branch Code *</FormLabel>
-                        <FormControl>
-                          <Input {...field} data-testid="input-branch-code" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={addLabourerForm.control}
-                  name="accountType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Account Type *</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-account-type">
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="savings">Savings</SelectItem>
-                          <SelectItem value="current">Current</SelectItem>
-                          <SelectItem value="transmission">Transmission</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <DialogFooter>
+          <DialogFooter className="mt-4">
+            <div className="flex items-center justify-between w-full">
+              <span className="text-sm text-muted-foreground">
+                {selectedLabourerIds.length} selected
+              </span>
+              <div className="flex gap-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -657,12 +466,16 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
                 >
                   Cancel
                 </Button>
-                <Button type="submit" data-testid="button-submit-add-labourer">
-                  Add Labourer
+                <Button
+                  onClick={handleAssignLabourers}
+                  disabled={selectedLabourerIds.length === 0}
+                  data-testid="button-assign-labourers"
+                >
+                  Assign {selectedLabourerIds.length > 0 && `(${selectedLabourerIds.length})`}
                 </Button>
-              </DialogFooter>
-            </form>
-          </Form>
+              </div>
+            </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
