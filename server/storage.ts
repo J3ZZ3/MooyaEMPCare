@@ -38,6 +38,8 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
   getUsersByRole(role: string): Promise<User[]>;
+  getAllUsers(): Promise<User[]>;
+  updateUserRole(id: string, role: string): Promise<User>;
   
   // Employee Type operations
   getEmployeeTypes(): Promise<EmployeeType[]>;
@@ -113,6 +115,22 @@ export class DatabaseStorage implements IStorage {
 
   async getUsersByRole(role: string): Promise<User[]> {
     return db.select().from(users).where(eq(users.role, role as any));
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return db.select().from(users).orderBy(desc(users.createdAt));
+  }
+
+  async updateUserRole(id: string, role: string): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({ role: role as any, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    if (!user) {
+      throw new Error("User not found");
+    }
+    return user;
   }
 
   // Employee Type operations

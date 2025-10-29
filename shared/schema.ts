@@ -454,3 +454,7 @@ export const insertCorrectionRequestSchema = createInsertSchema(correctionReques
   requestedAt: true,
   reviewedAt: true,
 });
+
+export const updateUserRoleSchema = z.object({
+  role: z.enum(["super_admin", "admin", "project_manager", "supervisor", "project_admin", "labourer"]),
+});
