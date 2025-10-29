@@ -66,7 +66,9 @@ async function upsertUser(
   }
 
   const userId = claims["sub"];
-  const existingUser = await storage.getUser(userId);
+  // IMPORTANT: Look up user by email (not sub) to handle OIDC sub rotation
+  // This ensures existing users keep their roles when their sub changes
+  const existingUser = await storage.getUserByEmail(claims["email"]);
   
   // Determine role priority:
   // 1. Super Admin for kholofelo@mooya.co.za (always)
