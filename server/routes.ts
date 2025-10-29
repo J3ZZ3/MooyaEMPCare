@@ -626,6 +626,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Use dbUser.id (attached by requireRole middleware)
       const userId = req.dbUser.id;
       const data = insertWorkLogSchema.parse({ ...req.body, recordedBy: userId });
+      
+      // Helper to extract yyyy-MM-dd from any date value without UTC drift
+      const toLocalDateString = (dateValue: any): string => {
+        if (!dateValue) return '';
+        
+        // If string, extract yyyy-MM-dd part only (handles "2024-01-01" and "2024-01-01T..." formats)
+        if (typeof dateValue === 'string') {
+          const match = dateValue.match(/^(\d{4})-(\d{2})-(\d{2})/);
+          return match ? `${match[1]}-${match[2]}-${match[3]}` : '';
+        }
+        
+        // For Date objects, extract local components (server's "today")
+        if (dateValue instanceof Date) {
+          return `${dateValue.getFullYear()}-${String(dateValue.getMonth() + 1).padStart(2, '0')}-${String(dateValue.getDate()).padStart(2, '0')}`;
+        }
+        
+        // Reject all other types (numbers, objects, etc.) to prevent drift
+        return '';
+      };
+      
+      // Server-side validation: Only allow today's date for new work logs (PRD requirement)
+      const today = toLocalDateString(new Date());
+      const workDate = toLocalDateString(data.workDate);
+      
+      if (!workDate) {
+        return res.status(400).json({ message: "Invalid work date format" });
+      }
+      
+      if (workDate !== today) {
+        return res.status(400).json({ 
+          message: "Can only create work logs for today. To modify historical data, submit a correction request." 
+        });
+      }
+      
       const log = await storage.createWorkLog(data);
       res.status(201).json(log);
     } catch (error: any) {
@@ -637,6 +671,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/work-logs/:id", isAuthenticated, requireRole("super_admin", "admin", "project_manager"), async (req, res) => {
     try {
       const data = insertWorkLogSchema.partial().parse(req.body);
+      
+      // Helper to extract yyyy-MM-dd from any date value without UTC drift
+      const toLocalDateString = (dateValue: any): string => {
+        if (!dateValue) return '';
+        
+        // If string, extract yyyy-MM-dd part only (handles "2024-01-01" and "2024-01-01T..." formats)
+        if (typeof dateValue === 'string') {
+          const match = dateValue.match(/^(\d{4})-(\d{2})-(\d{2})/);
+          return match ? `${match[1]}-${match[2]}-${match[3]}` : '';
+        }
+        
+        // For Date objects, extract local components (server's "today")
+        if (dateValue instanceof Date) {
+          return `${dateValue.getFullYear()}-${String(dateValue.getMonth() + 1).padStart(2, '0')}-${String(dateValue.getDate()).padStart(2, '0')}`;
+        }
+        
+        // Reject all other types (numbers, objects, etc.) to prevent drift
+        return '';
+      };
+      
+      // Get today's date in local timezone
+      const today = toLocalDateString(new Date());
+      
+      // Fetch existing work log to validate its date (PRD requirement: only today's logs can be edited)
+      const existingLog = await storage.getWorkLog(req.params.id);
+      if (!existingLog) {
+        return res.status(404).json({ message: "Work log not found" });
+      }
+      
+      // Check existing log's workDate is today
+      const existingWorkDate = toLocalDateString(existingLog.workDate);
+      if (existingWorkDate !== today) {
+        return res.status(400).json({ 
+          message: "Can only update today's work logs. To modify historical data, submit a correction request." 
+        });
+      }
+      
+      // If payload includes workDate, validate it's also today (prevent changing date to historical)
+      if (data.workDate) {
+        const payloadWorkDate = toLocalDateString(data.workDate);
+        if (!payloadWorkDate) {
+          return res.status(400).json({ message: "Invalid work date format in payload" });
+        }
+        if (payloadWorkDate !== today) {
+          return res.status(400).json({ 
+            message: "Can only set work date to today. To modify historical data, submit a correction request." 
+          });
+        }
+      }
+      
       const log = await storage.updateWorkLog(req.params.id, data);
       res.json(log);
     } catch (error: any) {

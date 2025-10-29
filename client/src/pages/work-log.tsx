@@ -49,6 +49,9 @@ export default function WorkLogPage({ user }: WorkLogPageProps) {
   
   // Track which project we've initialized entries for (prevents refetch resets)
   const initializedProjectRef = useRef<string>("");
+  
+  // Check if selected date is today (for edit restrictions)
+  const isToday = selectedDate.toDateString() === new Date().toDateString();
 
   // Fetch user's supervised projects
   const { data: projects, isLoading: projectsLoading } = useQuery<Project[]>({
@@ -199,6 +202,16 @@ export default function WorkLogPage({ user }: WorkLogPageProps) {
       return;
     }
 
+    // Enforce that only today's work can be saved (client-side guard)
+    if (!isToday) {
+      toast({
+        title: "Cannot Edit Historical Date",
+        description: "You can only edit today's work logs. Please submit a correction request to modify historical data.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (workEntries.every(e => parseFloat(e.openMeters) === 0 && parseFloat(e.closeMeters) === 0)) {
       toast({
         title: "No work entered",
@@ -276,6 +289,13 @@ export default function WorkLogPage({ user }: WorkLogPageProps) {
                 </div>
               ) : workEntries.length > 0 ? (
                 <div className="space-y-4">
+                  {!isToday && (
+                    <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-md p-4">
+                      <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                        <strong>Historical Date Selected:</strong> You can only edit today's work logs. To modify historical data, please submit a correction request via the Audit Trail page.
+                      </p>
+                    </div>
+                  )}
                   <div className="rounded-md border">
                     <Table>
                       <TableHeader>
@@ -299,6 +319,7 @@ export default function WorkLogPage({ user }: WorkLogPageProps) {
                                 onChange={(e) => handleMeterChange(entry.labourerId, "openMeters", e.target.value)}
                                 className="w-28 text-right font-mono"
                                 data-testid={`input-open-meters-${entry.labourerId}`}
+                                disabled={!isToday}
                               />
                             </TableCell>
                             <TableCell className="text-right">
@@ -310,6 +331,7 @@ export default function WorkLogPage({ user }: WorkLogPageProps) {
                                 onChange={(e) => handleMeterChange(entry.labourerId, "closeMeters", e.target.value)}
                                 className="w-28 text-right font-mono"
                                 data-testid={`input-close-meters-${entry.labourerId}`}
+                                disabled={!isToday}
                               />
                             </TableCell>
                             <TableCell className="text-right font-mono text-green-600 dark:text-green-400">
@@ -330,12 +352,12 @@ export default function WorkLogPage({ user }: WorkLogPageProps) {
                   <div className="flex justify-end">
                     <Button
                       onClick={handleSave}
-                      disabled={saveWorkLogsMutation.isPending}
+                      disabled={!isToday || saveWorkLogsMutation.isPending}
                       data-testid="button-save-work-log"
                     >
                       {saveWorkLogsMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       <Save className="mr-2 h-4 w-4" />
-                      Save Work Log
+                      {isToday ? "Save Work Log" : "Cannot Edit Historical Date"}
                     </Button>
                   </div>
                 </div>
