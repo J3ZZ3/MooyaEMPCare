@@ -53,7 +53,7 @@ function updateUserSession(
 // Domain restriction check
 function isAllowedDomain(email: string | null | undefined): boolean {
   if (!email) return false;
-  const allowedDomains = ["@mooya.co.za", "@mooyawireless.co.za"];
+  const allowedDomains = ["@mooya.co.za", "@mooyawireless.co.za", "@xnext.co.za"];
   return allowedDomains.some(domain => email.endsWith(domain));
 }
 
@@ -62,7 +62,7 @@ async function upsertUser(
 ) {
   // Check if email is from allowed domain
   if (!isAllowedDomain(claims["email"])) {
-    throw new Error("Access restricted to @mooya.co.za and @mooyawireless.co.za email addresses");
+    throw new Error("Access restricted to @mooya.co.za, @mooyawireless.co.za, and @xnext.co.za email addresses");
   }
 
   const userId = claims["sub"];
