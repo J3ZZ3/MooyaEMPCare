@@ -487,7 +487,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
 
       // Get all labourers in the project
-      const labourers = await storage.getProjectLabourers(projectId as string);
+      const labourers = await storage.getLabourers(projectId as string);
 
       // Get pay rates for the project
       const payRates = await storage.getPayRates(projectId as string);

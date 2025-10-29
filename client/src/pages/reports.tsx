@@ -73,7 +73,7 @@ export default function Reports({ user }: ReportsProps) {
 
     try {
       setIsGenerating(true);
-      const data: PayrollReport = await apiRequest(
+      const data = await apiRequest<PayrollReport>(
         "GET",
         `/api/reports/payroll?projectId=${selectedProjectId}&startDate=${startDate}&endDate=${endDate}`
       );
@@ -236,7 +236,7 @@ export default function Reports({ user }: ReportsProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {report.entries.length === 0 ? (
+                  {!report.entries || report.entries.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center text-muted-foreground">
                         No work logs found for this period
@@ -244,7 +244,7 @@ export default function Reports({ user }: ReportsProps) {
                     </TableRow>
                   ) : (
                     <>
-                      {report.entries.map((entry) => (
+                      {(report.entries || []).map((entry) => (
                         <TableRow key={entry.labourerId} data-testid={`row-labourer-${entry.labourerId}`}>
                           <TableCell className="font-medium">{entry.labourerName}</TableCell>
                           <TableCell className="font-mono text-sm">{entry.idNumber}</TableCell>
@@ -258,10 +258,10 @@ export default function Reports({ user }: ReportsProps) {
                       <TableRow className="bg-muted/50 font-bold">
                         <TableCell colSpan={2}>Total</TableCell>
                         <TableCell className="text-right">
-                          {report.entries.reduce((sum, e) => sum + e.totalOpenMeters, 0).toFixed(2)}
+                          {(report.entries || []).reduce((sum, e) => sum + e.totalOpenMeters, 0).toFixed(2)}
                         </TableCell>
                         <TableCell className="text-right">
-                          {report.entries.reduce((sum, e) => sum + e.totalCloseMeters, 0).toFixed(2)}
+                          {(report.entries || []).reduce((sum, e) => sum + e.totalCloseMeters, 0).toFixed(2)}
                         </TableCell>
                         <TableCell className="text-right" data-testid="text-grand-total">
                           R {report.grandTotal.toFixed(2)}
