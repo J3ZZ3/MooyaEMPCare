@@ -61,10 +61,12 @@ export interface IStorage {
   
   // Labourer operations
   getLabourers(projectId: string): Promise<Labourer[]>;
+  getAvailableLabourers(): Promise<Labourer[]>;
   getLabourer(id: string): Promise<Labourer | undefined>;
   getLabourerByUserId(userId: string): Promise<Labourer | undefined>;
   createLabourer(data: InsertLabourer): Promise<Labourer>;
   updateLabourer(id: string, data: Partial<InsertLabourer>): Promise<Labourer>;
+  assignLabourersToProject(labourerIds: string[], projectId: string): Promise<void>;
   
   // Pay Rate operations
   getPayRates(projectId: string): Promise<PayRate[]>;
@@ -307,6 +309,36 @@ export class DatabaseStorage implements IStorage {
       .where(eq(labourers.id, id))
       .returning();
     return labourer;
+  }
+
+  async getAvailableLabourers(): Promise<Labourer[]> {
+    // Get labourers who are either:
+    // 1. Not assigned to any project (projectId references a non-existent or inactive project)
+    // 2. Assigned to a project that is not active
+    const result = await db
+      .select({
+        labourer: labourers,
+        project: projects,
+      })
+      .from(labourers)
+      .leftJoin(projects, eq(labourers.projectId, projects.id))
+      .where(
+        sql`${projects.status} IS NULL OR ${projects.status} != 'active'`
+      );
+    
+    return result.map(r => r.labourer);
+  }
+
+  async assignLabourersToProject(labourerIds: string[], projectId: string): Promise<void> {
+    if (labourerIds.length === 0) return;
+    
+    await db
+      .update(labourers)
+      .set({ 
+        projectId, 
+        updatedAt: new Date() 
+      })
+      .where(inArray(labourers.id, labourerIds));
   }
 
   // Pay Rate operations
