@@ -47,6 +47,28 @@ The application uses a modern React-based single-page application (SPA) architec
 - Project details page shows a dialog with checkboxes for selecting available labourers
 - After assignment, labourers are automatically removed from the available pool for other active projects
 
+**Payment Period Management**: The system provides comprehensive payment period management with approval workflows:
+- GET /api/projects/:projectId/payment-periods - Lists all payment periods for a specific project
+- POST /api/payment-periods - Creates new payment periods (admin/project_manager only)
+- PUT /api/payment-periods/:id/submit - Submits period for approval (any authenticated user)
+- PUT /api/payment-periods/:id/approve - Approves submitted period (admin/project_manager only)
+- PUT /api/payment-periods/:id/reject - Rejects submitted period (admin/project_manager only)
+- Dedicated Payments page (/payments) aggregates periods across all projects
+- Workflow states: open → submitted → approved/rejected → paid
+- Displays labourer entries with total earnings per period
+- Available to all authenticated roles with role-based action permissions
+
+**Audit Trail & Correction Requests**: The system tracks all data corrections through a formal review process:
+- GET /api/correction-requests - Lists all correction requests with filtering
+- POST /api/correction-requests - Creates new correction requests (any authenticated user)
+- PUT /api/correction-requests/:id/approve - Approves correction (admin/project_manager only)
+- PUT /api/correction-requests/:id/reject - Rejects correction (admin/project_manager only)
+- Dedicated Audit page (/audit) for managing correction requests
+- Tracks: entity type, entity ID, field changed, old/new values, reason, and review status
+- Workflow states: pending → approved/rejected
+- Automatically populates requestedBy with current user ID
+- Provides transparent audit trail for all data changes
+
 **Payroll Reports**: The system provides comprehensive payroll reporting capabilities:
 - GET /api/reports/payroll - Generates payroll reports aggregating work logs by date range
 - Dedicated Reports page (/reports) with project and date range selection
