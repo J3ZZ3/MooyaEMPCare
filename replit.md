@@ -41,11 +41,18 @@ The application uses a modern React-based single-page application (SPA) architec
 
 **API Design**: RESTful endpoints organized by resource type (users, projects, labourers, payment-periods, work-logs). Authentication is required for all endpoints except login/callback routes.
 
+**User Management**: System administrators can manage user roles through the Users page:
+- GET /api/users - Lists all system users (admin/super_admin only)
+- PUT /api/users/:id - Updates user role (admin/super_admin only)
+- Zod schema validation ensures only valid roles can be assigned
+- Role changes take effect immediately and update access permissions
+
 **Authentication Strategy**: OpenID Connect (OIDC) integration with Replit Auth, providing:
 - Google OAuth for single sign-on
 - Session-based authentication using express-session
 - Token refresh mechanisms for long-lived sessions
-- Email domain restrictions (@mooya.co.za and @mooyawireless.co.za)
+- Email domain restrictions (@mooya.co.za, @mooyawireless.co.za, and @xnext.co.za)
+- Domain-based role assignment: @xnext.co.za users are automatically assigned admin role
 
 **Session Management**: PostgreSQL-backed session store using connect-pg-simple, providing persistent sessions across server restarts with 7-day TTL.
 
