@@ -11,6 +11,7 @@ import UsersPage from "@/pages/users";
 import EmployeeTypesPage from "@/pages/employee-types";
 import ProjectsPage from "@/pages/projects";
 import PayRatesPage from "@/pages/pay-rates";
+import LabourersPage from "@/pages/labourers";
 import NotFound from "@/pages/not-found";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -80,6 +81,7 @@ function AuthenticatedApp({ user }: { user: User }) {
                 <Route path="/employee-types" component={() => <EmployeeTypesPage user={user} />} />
                 <Route path="/projects" component={() => <ProjectsPage user={user} />} />
                 <Route path="/pay-rates" component={() => <PayRatesPage user={user} />} />
+                <Route path="/labourers" component={LabourersPage} />
                 <Route component={NotFound} />
               </Switch>
             </div>

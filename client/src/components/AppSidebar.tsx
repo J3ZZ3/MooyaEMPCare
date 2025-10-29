@@ -31,6 +31,7 @@ const menuItems = {
     { title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
     { title: "Projects", icon: Briefcase, path: "/projects" },
     { title: "Pay Rates", icon: DollarSign, path: "/pay-rates" },
+    { title: "Labourers", icon: Users, path: "/labourers" },
     { title: "Users", icon: Users, path: "/users" },
     { title: "Employee Types", icon: FileText, path: "/employee-types" },
     { title: "Settings", icon: Settings, path: "/settings" },
@@ -39,6 +40,7 @@ const menuItems = {
     { title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
     { title: "Projects", icon: Briefcase, path: "/projects" },
     { title: "Pay Rates", icon: DollarSign, path: "/pay-rates" },
+    { title: "Labourers", icon: Users, path: "/labourers" },
     { title: "Users", icon: Users, path: "/users" },
     { title: "Employee Types", icon: FileText, path: "/employee-types" },
   ],
@@ -46,6 +48,7 @@ const menuItems = {
     { title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
     { title: "Projects", icon: Briefcase, path: "/projects" },
     { title: "Pay Rates", icon: DollarSign, path: "/pay-rates" },
+    { title: "Labourers", icon: Users, path: "/labourers" },
     { title: "Payments", icon: DollarSign, path: "/payments" },
     { title: "Audit Trail", icon: FileText, path: "/audit" },
   ],
@@ -57,6 +60,7 @@ const menuItems = {
   project_admin: [
     { title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
     { title: "Projects", icon: Briefcase, path: "/projects" },
+    { title: "Labourers", icon: Users, path: "/labourers" },
     { title: "Audit Trail", icon: FileText, path: "/audit" },
   ],
   labourer: [

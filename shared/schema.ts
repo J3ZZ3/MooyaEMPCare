@@ -380,7 +380,6 @@ export const correctionRequestsRelations = relations(correctionRequests, ({ one 
 
 // Type exports
 export type UpsertUser = typeof users.$inferInsert;
-export type User = typeof users.$inferSelect;
 
 export type InsertEmployeeType = typeof employeeTypes.$inferInsert;
 export type EmployeeType = typeof employeeTypes.$inferSelect;
