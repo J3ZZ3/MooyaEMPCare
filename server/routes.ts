@@ -413,6 +413,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/labourers/bulk", isAuthenticated, requireRole("super_admin", "admin", "project_manager", "supervisor", "project_admin"), async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { labourers: labourersData } = req.body;
+      
+      if (!labourersData || !Array.isArray(labourersData) || labourersData.length === 0) {
+        return res.status(400).json({ message: "labourers array is required and must not be empty" });
+      }
+
+      // Validate and add createdBy to each labourer
+      const validatedData = labourersData.map(labourer => 
+        insertLabourerSchema.parse({ ...labourer, createdBy: userId })
+      );
+      
+      const created = await storage.bulkCreateLabourers(validatedData);
+      res.status(201).json({ 
+        message: `Successfully created ${created.length} labourers`,
+        labourers: created 
+      });
+    } catch (error: any) {
+      console.error("Error bulk creating labourers:", error);
+      res.status(400).json({ message: error.message || "Failed to bulk create labourers" });
+    }
+  });
+
   app.put("/api/labourers/:id", isAuthenticated, requireRole("super_admin", "admin", "project_manager", "supervisor", "project_admin"), async (req, res) => {
     try {
       const data = insertLabourerSchema.partial().parse(req.body);

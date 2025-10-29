@@ -65,6 +65,7 @@ export interface IStorage {
   getLabourer(id: string): Promise<Labourer | undefined>;
   getLabourerByUserId(userId: string): Promise<Labourer | undefined>;
   createLabourer(data: InsertLabourer): Promise<Labourer>;
+  bulkCreateLabourers(data: InsertLabourer[]): Promise<Labourer[]>;
   updateLabourer(id: string, data: Partial<InsertLabourer>): Promise<Labourer>;
   assignLabourersToProject(labourerIds: string[], projectId: string): Promise<void>;
   
@@ -300,6 +301,12 @@ export class DatabaseStorage implements IStorage {
   async createLabourer(data: InsertLabourer): Promise<Labourer> {
     const [labourer] = await db.insert(labourers).values(data).returning();
     return labourer;
+  }
+
+  async bulkCreateLabourers(data: InsertLabourer[]): Promise<Labourer[]> {
+    if (data.length === 0) return [];
+    const created = await db.insert(labourers).values(data).returning();
+    return created;
   }
 
   async updateLabourer(id: string, data: Partial<InsertLabourer>): Promise<Labourer> {

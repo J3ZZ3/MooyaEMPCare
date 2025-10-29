@@ -10,7 +10,7 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, Briefcase, Users, DollarSign, FileText, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, Briefcase, Users, DollarSign, FileText, Settings, LogOut, UserPlus } from "lucide-react";
 import RoleBadge from "./RoleBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import mooyaLogo from "@assets/Mooya Logo_1761683789909.png";
@@ -32,6 +32,7 @@ const menuItems = {
     { title: "Projects", icon: Briefcase, path: "/projects" },
     { title: "Pay Rates", icon: DollarSign, path: "/pay-rates" },
     { title: "Labourers", icon: Users, path: "/labourers" },
+    { title: "Bulk Entry", icon: UserPlus, path: "/bulk-labourers" },
     { title: "Users", icon: Users, path: "/users" },
     { title: "Employee Types", icon: FileText, path: "/employee-types" },
     { title: "Settings", icon: Settings, path: "/settings" },
@@ -41,6 +42,7 @@ const menuItems = {
     { title: "Projects", icon: Briefcase, path: "/projects" },
     { title: "Pay Rates", icon: DollarSign, path: "/pay-rates" },
     { title: "Labourers", icon: Users, path: "/labourers" },
+    { title: "Bulk Entry", icon: UserPlus, path: "/bulk-labourers" },
     { title: "Daily Work", icon: FileText, path: "/work-log" },
     { title: "Users", icon: Users, path: "/users" },
     { title: "Employee Types", icon: FileText, path: "/employee-types" },
@@ -50,18 +52,21 @@ const menuItems = {
     { title: "Projects", icon: Briefcase, path: "/projects" },
     { title: "Pay Rates", icon: DollarSign, path: "/pay-rates" },
     { title: "Labourers", icon: Users, path: "/labourers" },
+    { title: "Bulk Entry", icon: UserPlus, path: "/bulk-labourers" },
     { title: "Payments", icon: DollarSign, path: "/payments" },
     { title: "Audit Trail", icon: FileText, path: "/audit" },
   ],
   supervisor: [
     { title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
     { title: "Labourers", icon: Users, path: "/labourers" },
+    { title: "Bulk Entry", icon: UserPlus, path: "/bulk-labourers" },
     { title: "Daily Work", icon: FileText, path: "/work-log" },
   ],
   project_admin: [
     { title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
     { title: "Projects", icon: Briefcase, path: "/projects" },
     { title: "Labourers", icon: Users, path: "/labourers" },
+    { title: "Bulk Entry", icon: UserPlus, path: "/bulk-labourers" },
     { title: "Audit Trail", icon: FileText, path: "/audit" },
   ],
   labourer: [
