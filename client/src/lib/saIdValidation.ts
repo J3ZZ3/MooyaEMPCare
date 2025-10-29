@@ -131,31 +131,29 @@ export function validateSAId(idNumber: string): SAIdInfo {
 
 /**
  * Validates the checksum digit using the Luhn algorithm
+ * SA IDs include the checksum in the sum and check if total % 10 == 0
  */
 function validateLuhnChecksum(idNumber: string): boolean {
   let sum = 0;
-  let shouldDouble = false;
 
-  // Process digits from right to left (excluding the checksum digit)
-  for (let i = idNumber.length - 2; i >= 0; i--) {
+  // Process all 13 digits from left to right
+  for (let i = 0; i < 13; i++) {
     let digit = parseInt(idNumber[i], 10);
 
-    if (shouldDouble) {
+    // Double every second digit from the left (positions with odd index: 1, 3, 5, 7, 9, 11)
+    if (i % 2 === 1) {
       digit *= 2;
+      // If doubling produces a number > 9, subtract 9
       if (digit > 9) {
         digit -= 9;
       }
     }
 
     sum += digit;
-    shouldDouble = !shouldDouble;
   }
 
-  // Calculate what the checksum should be
-  const calculatedChecksum = (10 - (sum % 10)) % 10;
-  const actualChecksum = parseInt(idNumber[idNumber.length - 1], 10);
-
-  return calculatedChecksum === actualChecksum;
+  // Valid if sum is divisible by 10
+  return (sum % 10) === 0;
 }
 
 /**
