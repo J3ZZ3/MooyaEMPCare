@@ -255,6 +255,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const data = insertProjectSchema.parse({ ...req.body, createdBy: userId });
       const project = await storage.createProject(data);
+      
+      // If default rates are provided, create pay rates for all employee types
+      if (data.defaultOpenRate || data.defaultCloseRate) {
+        const employeeTypes = await storage.getEmployeeTypes();
+        
+        for (const employeeType of employeeTypes) {
+          // Create opening rate if provided
+          if (data.defaultOpenRate) {
+            await storage.createPayRate({
+              projectId: project.id,
+              employeeTypeId: employeeType.id,
+              category: "open_trenching",
+              amount: data.defaultOpenRate,
+              unit: "per_meter",
+              effectiveDate: new Date().toISOString().split('T')[0],
+              createdBy: userId,
+            });
+          }
+          
+          // Create closing rate if provided
+          if (data.defaultCloseRate) {
+            await storage.createPayRate({
+              projectId: project.id,
+              employeeTypeId: employeeType.id,
+              category: "close_trenching",
+              amount: data.defaultCloseRate,
+              unit: "per_meter",
+              effectiveDate: new Date().toISOString().split('T')[0],
+              createdBy: userId,
+            });
+          }
+        }
+      }
+      
       res.status(201).json(project);
     } catch (error: any) {
       console.error("Error creating project:", error);

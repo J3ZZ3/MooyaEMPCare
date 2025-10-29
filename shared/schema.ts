@@ -82,6 +82,12 @@ export const projectStatusEnum = pgEnum("project_status", [
   "on_hold"
 ]);
 
+// Payment period enum
+export const paymentPeriodEnum = pgEnum("payment_period", [
+  "monthly",
+  "fortnightly"
+]);
+
 // Projects table
 export const projects = pgTable("projects", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -89,6 +95,9 @@ export const projects = pgTable("projects", {
   location: varchar("location", { length: 500 }),
   budget: decimal("budget", { precision: 12, scale: 2 }),
   status: projectStatusEnum("status").notNull().default("active"),
+  paymentPeriod: paymentPeriodEnum("payment_period").notNull().default("fortnightly"),
+  defaultOpenRate: decimal("default_open_rate", { precision: 10, scale: 2 }),
+  defaultCloseRate: decimal("default_close_rate", { precision: 10, scale: 2 }),
   startDate: timestamp("start_date").defaultNow(),
   endDate: timestamp("end_date"),
   createdBy: varchar("created_by").notNull().references(() => users.id),

@@ -89,6 +89,9 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
       location: "",
       budget: "",
       status: "active",
+      paymentPeriod: "fortnightly",
+      defaultOpenRate: "",
+      defaultCloseRate: "",
       createdBy: "",
     },
   });
@@ -229,6 +232,9 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
       location: project.location || "",
       budget: project.budget ? String(project.budget) : "",
       status: project.status,
+      paymentPeriod: project.paymentPeriod || "fortnightly",
+      defaultOpenRate: project.defaultOpenRate ? String(project.defaultOpenRate) : "",
+      defaultCloseRate: project.defaultCloseRate ? String(project.defaultCloseRate) : "",
       createdBy: project.createdBy,
     });
     setEditDialogOpen(true);
@@ -434,6 +440,81 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={addForm.control}
+                name="paymentPeriod"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Payment Period *</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value || "fortnightly"}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-payment-period">
+                          <SelectValue placeholder="Select payment period" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="fortnightly">Fortnightly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={addForm.control}
+                  name="defaultOpenRate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Opening Rate (ZAR/m)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="e.g., 50.00"
+                          {...field}
+                          value={field.value || ""}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (value === "" || /^\d*\.?\d*$/.test(value)) {
+                              field.onChange(value);
+                            }
+                          }}
+                          data-testid="input-default-open-rate"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={addForm.control}
+                  name="defaultCloseRate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Closing Rate (ZAR/m)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="e.g., 75.00"
+                          {...field}
+                          value={field.value || ""}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (value === "" || /^\d*\.?\d*$/.test(value)) {
+                              field.onChange(value);
+                            }
+                          }}
+                          data-testid="input-default-close-rate"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
               <FormField
                 control={addForm.control}
                 name="status"
