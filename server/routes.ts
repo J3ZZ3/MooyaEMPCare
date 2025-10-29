@@ -250,6 +250,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/projects/:id/managers", isAuthenticated, async (req, res) => {
+    try {
+      const managers = await storage.getProjectManagers(req.params.id);
+      res.json(managers);
+    } catch (error) {
+      console.error("Error fetching project managers:", error);
+      res.status(500).json({ message: "Failed to fetch project managers" });
+    }
+  });
+
+  app.get("/api/projects/:id/supervisors", isAuthenticated, async (req, res) => {
+    try {
+      const supervisors = await storage.getProjectSupervisors(req.params.id);
+      res.json(supervisors);
+    } catch (error) {
+      console.error("Error fetching project supervisors:", error);
+      res.status(500).json({ message: "Failed to fetch project supervisors" });
+    }
+  });
+
   app.post("/api/projects", isAuthenticated, requireRole("super_admin", "admin"), async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;

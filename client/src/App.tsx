@@ -10,6 +10,7 @@ import Dashboard from "@/pages/dashboard";
 import UsersPage from "@/pages/users";
 import EmployeeTypesPage from "@/pages/employee-types";
 import ProjectsPage from "@/pages/projects";
+import ProjectDetails from "@/pages/project-details";
 import PayRatesPage from "@/pages/pay-rates";
 import LabourersPage from "@/pages/labourers";
 import WorkLogPage from "@/pages/work-log";
@@ -80,6 +81,7 @@ function AuthenticatedApp({ user }: { user: User }) {
                 <Route path="/dashboard" component={() => <Dashboard user={user} />} />
                 <Route path="/users" component={() => <UsersPage user={user} />} />
                 <Route path="/employee-types" component={() => <EmployeeTypesPage user={user} />} />
+                <Route path="/projects/:id" component={() => <ProjectDetails user={user} />} />
                 <Route path="/projects" component={() => <ProjectsPage user={user} />} />
                 <Route path="/pay-rates" component={() => <PayRatesPage user={user} />} />
                 <Route path="/labourers" component={LabourersPage} />

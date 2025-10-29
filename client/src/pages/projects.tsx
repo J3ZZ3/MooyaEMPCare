@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Search, Plus, Edit, Users, Loader2 } from "lucide-react";
+import { Search, Plus, Edit, Users, Loader2, Eye } from "lucide-react";
 import { insertProjectSchema } from "@shared/schema";
 import type { User, Project } from "@shared/schema";
 import type { z } from "zod";
@@ -337,8 +337,18 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
                         <Button
                           variant="ghost"
                           size="icon"
+                          onClick={() => window.location.href = `/projects/${project.id}`}
+                          data-testid={`button-details-${project.id}`}
+                          title="View Details"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={() => openTeamDialog(project)}
                           data-testid={`button-team-${project.id}`}
+                          title="Assign Team"
                         >
                           <Users className="h-4 w-4" />
                         </Button>
@@ -348,6 +358,7 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
                             size="icon"
                             onClick={() => openEditDialog(project)}
                             data-testid={`button-edit-${project.id}`}
+                            title="Edit Project"
                           >
                             <Edit className="h-4 w-4" />
                           </Button>

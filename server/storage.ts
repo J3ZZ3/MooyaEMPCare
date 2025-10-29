@@ -30,7 +30,7 @@ import {
   type InsertCorrectionRequest,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
+import { eq, and, desc, gte, lte, sql, inArray } from "drizzle-orm";
 
 // Storage interface
 export interface IStorage {
@@ -56,6 +56,8 @@ export interface IStorage {
   updateProject(id: string, data: Partial<InsertProject>): Promise<Project>;
   assignProjectManager(projectId: string, userId: string): Promise<{ success: boolean; alreadyAssigned: boolean }>;
   assignProjectSupervisor(projectId: string, userId: string): Promise<{ success: boolean; alreadyAssigned: boolean }>;
+  getProjectManagers(projectId: string): Promise<User[]>;
+  getProjectSupervisors(projectId: string): Promise<User[]>;
   
   // Labourer operations
   getLabourers(projectId: string): Promise<Labourer[]>;
@@ -248,6 +250,34 @@ export class DatabaseStorage implements IStorage {
       console.error("Error assigning project supervisor:", error);
       throw new Error("Failed to assign project supervisor");
     }
+  }
+
+  async getProjectManagers(projectId: string): Promise<User[]> {
+    const assignments = await db
+      .select()
+      .from(projectManagers)
+      .where(eq(projectManagers.projectId, projectId));
+    
+    if (assignments.length === 0) {
+      return [];
+    }
+    
+    const userIds = assignments.map(a => a.userId);
+    return db.select().from(users).where(inArray(users.id, userIds));
+  }
+
+  async getProjectSupervisors(projectId: string): Promise<User[]> {
+    const assignments = await db
+      .select()
+      .from(projectSupervisors)
+      .where(eq(projectSupervisors.projectId, projectId));
+    
+    if (assignments.length === 0) {
+      return [];
+    }
+    
+    const userIds = assignments.map(a => a.userId);
+    return db.select().from(users).where(inArray(users.id, userIds));
   }
 
   // Labourer operations
