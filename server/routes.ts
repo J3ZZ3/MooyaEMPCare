@@ -72,6 +72,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { role } = updateUserRoleSchema.parse(req.body);
       
+      // Users cannot edit their own role
+      if (req.params.id === req.dbUser.id) {
+        return res.status(403).json({ 
+          message: "You cannot change your own role" 
+        });
+      }
+      
       // Admins cannot assign super_admin role - only super_admin can do that
       if (req.dbUser.role === "admin" && role === "super_admin") {
         return res.status(403).json({ 

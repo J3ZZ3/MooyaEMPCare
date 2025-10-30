@@ -174,6 +174,7 @@ export default function UsersPage({ user }: UsersPageProps) {
                 <SelectItem value="project_manager">Project Manager</SelectItem>
                 <SelectItem value="supervisor">Supervisor</SelectItem>
                 <SelectItem value="project_admin">Project Administrator</SelectItem>
+                <SelectItem value="labourer">Labourer</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -196,36 +197,38 @@ export default function UsersPage({ user }: UsersPageProps) {
                 </TableHeader>
                 <TableBody>
                   {filteredUsers && filteredUsers.length > 0 ? (
-                    filteredUsers.map((user) => (
-                      <TableRow key={user.id} data-testid={`row-user-${user.id}`}>
+                    filteredUsers.map((tableUser) => (
+                      <TableRow key={tableUser.id} data-testid={`row-user-${tableUser.id}`}>
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <Avatar className="h-9 w-9">
-                              <AvatarImage src={user.profileImageUrl || undefined} />
+                              <AvatarImage src={tableUser.profileImageUrl || undefined} />
                               <AvatarFallback className="text-xs">
-                                {getInitials(user.firstName, user.lastName)}
+                                {getInitials(tableUser.firstName, tableUser.lastName)}
                               </AvatarFallback>
                             </Avatar>
                             <span className="font-medium">
-                              {user.firstName} {user.lastName}
+                              {tableUser.firstName} {tableUser.lastName}
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-muted-foreground">{user.email}</TableCell>
+                        <TableCell className="text-muted-foreground">{tableUser.email}</TableCell>
                         <TableCell>
-                          <Badge className={roleBadgeColors[user.role]} variant="secondary">
-                            {roleLabels[user.role]}
+                          <Badge className={roleBadgeColors[tableUser.role]} variant="secondary">
+                            {roleLabels[tableUser.role]}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditRole(user)}
-                            data-testid={`button-edit-user-${user.id}`}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
+                          {tableUser.id !== user.id && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditRole(tableUser)}
+                              data-testid={`button-edit-user-${tableUser.id}`}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))
@@ -266,6 +269,7 @@ export default function UsersPage({ user }: UsersPageProps) {
                   <SelectItem value="project_manager">Project Manager</SelectItem>
                   <SelectItem value="supervisor">Supervisor</SelectItem>
                   <SelectItem value="project_admin">Project Administrator</SelectItem>
+                  <SelectItem value="labourer">Labourer</SelectItem>
                 </SelectContent>
               </Select>
             </div>
