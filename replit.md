@@ -18,6 +18,7 @@ The application uses a modern React-based single-page application (SPA) architec
 
 The backend uses Express.js with Node.js, providing a RESTful API. Key features include:
 - **Labourer Assignment**: Allows batch assignment of labourers to projects, showing availability.
+- **Streamlined Project Creation**: Supervisors can be assigned during project creation in a single step. The Add Project dialog includes an optional supervisor selector, and the POST /api/projects endpoint accepts supervisorId to automatically create the assignment. Team Management dialog displays all assigned managers and supervisors for transparency.
 - **Payment Period Management**: Comprehensive workflow (create → submit → approve/reject) for payment periods across projects, with role-based permissions. Payment period entries track open/close meters separately with detailed breakdown (openMeters, closeMeters, totalMeters columns).
 - **Project Manager Permissions** (PRD PM-001): Implements defense-in-depth security for PM role restrictions:
   - Frontend: Separate permissions (canCreate, canAssignTeam, canEditStatus) control UI visibility
