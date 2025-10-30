@@ -78,30 +78,35 @@ export default function UsersPage({ user }: UsersPageProps) {
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [newRole, setNewRole] = useState<UserRole | "">("");
+  const [editForm, setEditForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    role: "" as UserRole | "",
+  });
 
   const { data: users, isLoading } = useQuery<User[]>({
     queryKey: ["/api/users"],
   });
 
-  const updateRoleMutation = useMutation({
-    mutationFn: async ({ userId, role }: { userId: string; role: UserRole }) => {
-      return apiRequest("PUT", `/api/users/${userId}`, { role });
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ userId, data }: { userId: string; data: Partial<{ firstName: string; lastName: string; email: string; role: UserRole }> }) => {
+      return apiRequest("PUT", `/api/users/${userId}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       toast({
-        title: "Role updated",
-        description: "User role has been updated successfully.",
+        title: "User updated",
+        description: "User details have been updated successfully.",
       });
       setEditDialogOpen(false);
       setSelectedUser(null);
-      setNewRole("");
+      setEditForm({ firstName: "", lastName: "", email: "", role: "" });
     },
     onError: (error: Error) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to update user role",
+        description: error.message || "Failed to update user",
         variant: "destructive",
       });
     },
@@ -119,15 +124,26 @@ export default function UsersPage({ user }: UsersPageProps) {
     return matchesSearch && matchesRole;
   });
 
-  const handleEditRole = (user: User) => {
+  const handleEditUser = (user: User) => {
     setSelectedUser(user);
-    setNewRole(user.role);
+    setEditForm({
+      firstName: user.firstName || "",
+      lastName: user.lastName || "",
+      email: user.email || "",
+      role: user.role,
+    });
     setEditDialogOpen(true);
   };
 
-  const handleUpdateRole = () => {
-    if (selectedUser && newRole) {
-      updateRoleMutation.mutate({ userId: selectedUser.id, role: newRole as UserRole });
+  const handleUpdateUser = () => {
+    if (selectedUser && editForm.role) {
+      const updateData: any = {};
+      if (editForm.firstName) updateData.firstName = editForm.firstName;
+      if (editForm.lastName) updateData.lastName = editForm.lastName;
+      if (editForm.email) updateData.email = editForm.email;
+      if (editForm.role) updateData.role = editForm.role;
+      
+      updateUserMutation.mutate({ userId: selectedUser.id, data: updateData });
     }
   };
 
@@ -223,7 +239,7 @@ export default function UsersPage({ user }: UsersPageProps) {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleEditRole(tableUser)}
+                              onClick={() => handleEditUser(tableUser)}
                               data-testid={`button-edit-user-${tableUser.id}`}
                             >
                               <Edit className="h-4 w-4" />
@@ -247,17 +263,48 @@ export default function UsersPage({ user }: UsersPageProps) {
       </Card>
 
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent data-testid="dialog-edit-role">
+        <DialogContent data-testid="dialog-edit-user">
           <DialogHeader>
-            <DialogTitle>Edit User Role</DialogTitle>
+            <DialogTitle>Edit User</DialogTitle>
             <DialogDescription>
-              Update the role for {selectedUser?.firstName} {selectedUser?.lastName}
+              Update user details for {selectedUser?.firstName} {selectedUser?.lastName}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
+              <Label htmlFor="firstName">First Name</Label>
+              <Input
+                id="firstName"
+                value={editForm.firstName}
+                onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
+                placeholder="Enter first name"
+                data-testid="input-first-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="lastName">Last Name</Label>
+              <Input
+                id="lastName"
+                value={editForm.lastName}
+                onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
+                placeholder="Enter last name"
+                data-testid="input-last-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                placeholder="Enter email address"
+                data-testid="input-email"
+              />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="role">Role</Label>
-              <Select value={newRole} onValueChange={(value) => setNewRole(value as UserRole)}>
+              <Select value={editForm.role} onValueChange={(value) => setEditForm({ ...editForm, role: value as UserRole })}>
                 <SelectTrigger id="role" data-testid="select-new-role">
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
@@ -283,11 +330,11 @@ export default function UsersPage({ user }: UsersPageProps) {
               Cancel
             </Button>
             <Button
-              onClick={handleUpdateRole}
-              disabled={!newRole || updateRoleMutation.isPending}
-              data-testid="button-save-role"
+              onClick={handleUpdateUser}
+              disabled={!editForm.role || !editForm.firstName || !editForm.lastName || !editForm.email || updateUserMutation.isPending}
+              data-testid="button-save-user"
             >
-              {updateRoleMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {updateUserMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save Changes
             </Button>
           </DialogFooter>

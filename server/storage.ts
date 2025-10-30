@@ -41,6 +41,7 @@ export interface IStorage {
   getUsersByRole(role: string): Promise<User[]>;
   getAllUsers(): Promise<User[]>;
   updateUserRole(id: string, role: string): Promise<User>;
+  updateUser(id: string, data: Partial<{ firstName: string; lastName: string; email: string; role: string }>): Promise<User>;
   
   // Employee Type operations
   getEmployeeTypes(): Promise<EmployeeType[]>;
@@ -159,6 +160,24 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db
       .update(users)
       .set({ role: role as any, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    if (!user) {
+      throw new Error("User not found");
+    }
+    return user;
+  }
+
+  async updateUser(id: string, data: Partial<{ firstName: string; lastName: string; email: string; role: string }>): Promise<User> {
+    const updateData: any = { updatedAt: new Date() };
+    if (data.firstName !== undefined) updateData.firstName = data.firstName;
+    if (data.lastName !== undefined) updateData.lastName = data.lastName;
+    if (data.email !== undefined) updateData.email = data.email;
+    if (data.role !== undefined) updateData.role = data.role;
+
+    const [user] = await db
+      .update(users)
+      .set(updateData)
       .where(eq(users.id, id))
       .returning();
     if (!user) {

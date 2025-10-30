@@ -16,6 +16,7 @@ import {
   insertPaymentPeriodSchema,
   insertCorrectionRequestSchema,
   updateUserRoleSchema,
+  updateUserSchema,
   paymentPeriodEntries,
   paymentPeriods,
   projects,
@@ -71,27 +72,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put('/api/users/:id', isAuthenticated, requireRole("super_admin", "admin"), async (req: any, res) => {
     try {
-      const { role } = updateUserRoleSchema.parse(req.body);
+      const updateData = updateUserSchema.parse(req.body);
       
-      // Users cannot edit their own role
+      // Users cannot edit themselves
       if (req.params.id === req.dbUser.id) {
         return res.status(403).json({ 
-          message: "You cannot change your own role" 
+          message: "You cannot edit your own user account" 
         });
       }
       
       // Admins cannot assign super_admin role - only super_admin can do that
-      if (req.dbUser.role === "admin" && role === "super_admin") {
+      if (req.dbUser.role === "admin" && updateData.role === "super_admin") {
         return res.status(403).json({ 
           message: "Only Super Admins can assign the Super Admin role" 
         });
       }
       
-      const user = await storage.updateUserRole(req.params.id, role);
+      const user = await storage.updateUser(req.params.id, updateData);
       res.json(user);
     } catch (error: any) {
-      console.error("Error updating user role:", error);
-      res.status(400).json({ message: error.message || "Failed to update user role" });
+      console.error("Error updating user:", error);
+      res.status(400).json({ message: error.message || "Failed to update user" });
     }
   });
 

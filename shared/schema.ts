@@ -477,3 +477,10 @@ export const insertCorrectionRequestSchema = createInsertSchema(correctionReques
 export const updateUserRoleSchema = z.object({
   role: z.enum(["super_admin", "admin", "project_manager", "supervisor", "project_admin", "labourer"]),
 });
+
+export const updateUserSchema = z.object({
+  firstName: z.string().min(1, "First name is required").optional(),
+  lastName: z.string().min(1, "Last name is required").optional(),
+  email: z.string().email("Invalid email address").optional(),
+  role: z.enum(["super_admin", "admin", "project_manager", "supervisor", "project_admin", "labourer"]).optional(),
+});
