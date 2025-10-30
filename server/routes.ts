@@ -720,10 +720,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const labourers = await storage.getLabourers(projectId as string);
       const labourerMap = new Map(labourers.map((l: any) => [l.id, l]));
 
-      // Get employee types with pay rates
-      const employeeTypes = await storage.getEmployeeTypes();
-      const employeeTypeMap = new Map(employeeTypes.map((et: any) => [et.id, et]));
-
       // Generate all dates in the range
       const start = new Date(startDate as string);
       const end = new Date(endDate as string);
@@ -733,8 +729,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Build matrix data structure
-      // Map: labourerId -> Map: date -> { opens, closes, total }
-      const matrixData = new Map<string, Map<string, { opens: number; closes: number; total: number }>>();
+      // Map: labourerId -> Map: date -> { opens, closes, total, earnings }
+      const matrixData = new Map<string, Map<string, { opens: number; closes: number; total: number; earnings: number }>>();
 
       workLogs.forEach((log: any) => {
         if (!matrixData.has(log.labourerId)) {
@@ -744,11 +740,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const labourerDates = matrixData.get(log.labourerId)!;
         const opens = parseFloat(log.openTrenchingMeters || "0");
         const closes = parseFloat(log.closeTrenchingMeters || "0");
+        const earnings = parseFloat(log.totalEarnings || "0");
         
         labourerDates.set(log.workDate, {
           opens,
           closes,
-          total: opens + closes
+          total: opens + closes,
+          earnings
         });
       });
 
@@ -773,20 +771,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
 
         // Calculate row totals
-        const rowTotals = {
-          opens: dailyValues.reduce((sum, day) => sum + day.opens, 0),
-          closes: dailyValues.reduce((sum, day) => sum + day.closes, 0),
-          total: dailyValues.reduce((sum, day) => sum + day.total, 0),
-          totalAmount: 0
-        };
-
-        // Calculate earnings based on employee type rates
-        if (labourer?.employeeTypeId) {
-          const employeeType = employeeTypeMap.get(labourer.employeeTypeId);
-          if (employeeType) {
-            const openRate = parseFloat(employeeType.openTrenchingRate || "0");
-            const closeRate = parseFloat(employeeType.closeTrenchingRate || "0");
-            rowTotals.totalAmount = (rowTotals.opens * openRate) + (rowTotals.closes * closeRate);
+        const opens = dailyValues.reduce((sum, day) => sum + day.opens, 0);
+        const closes = dailyValues.reduce((sum, day) => sum + day.closes, 0);
+        const total = dailyValues.reduce((sum, day) => sum + day.total, 0);
+        
+        // Calculate total earnings by summing from work logs
+        let totalAmount = 0;
+        for (const date of dates) {
+          const dayWork = dateMap.get(date);
+          if (dayWork) {
+            totalAmount += dayWork.earnings;
           }
         }
 
@@ -795,7 +789,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           labourerName,
           idNumber,
           dailyValues,
-          rowTotals
+          rowTotals: {
+            opens,
+            closes,
+            total,
+            totalAmount
+          }
         };
       });
 
