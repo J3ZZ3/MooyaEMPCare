@@ -79,7 +79,15 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedManagerId, setSelectedManagerId] = useState("");
   const [selectedSupervisorId, setSelectedSupervisorId] = useState("");
-  const [newProjectSupervisorId, setNewProjectSupervisorId] = useState("");
+  const [newProjectSupervisorId, setNewProjectSupervisorId] = useState("none");
+
+  // Reset supervisor selection when Add dialog opens
+  const handleAddDialogChange = (open: boolean) => {
+    setAddDialogOpen(open);
+    if (open) {
+      setNewProjectSupervisorId("none");
+    }
+  };
 
   // Separate permissions for different operations
   const canCreate = user.role === "super_admin" || user.role === "admin";
@@ -118,12 +126,23 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
     enabled: (teamDialogOpen || addDialogOpen) && canAssignTeam,
   });
 
+  const { data: projectManagers } = useQuery<User[]>({
+    queryKey: ["/api/projects", selectedProject?.id, "managers"],
+    enabled: teamDialogOpen && !!selectedProject,
+  });
+
+  const { data: projectSupervisors } = useQuery<User[]>({
+    queryKey: ["/api/projects", selectedProject?.id, "supervisors"],
+    enabled: teamDialogOpen && !!selectedProject,
+  });
+
   const assignManagerMutation = useMutation({
     mutationFn: async ({ projectId, userId }: { projectId: string; userId: string }) => {
       return apiRequest("POST", `/api/projects/${projectId}/managers`, { userId });
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", variables.projectId, "managers"] });
       toast({
         title: "Manager assigned",
         description: "The project manager has been assigned successfully.",
@@ -143,8 +162,9 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
     mutationFn: async ({ projectId, userId }: { projectId: string; userId: string }) => {
       return apiRequest("POST", `/api/projects/${projectId}/supervisors`, { userId });
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", variables.projectId, "supervisors"] });
       toast({
         title: "Supervisor assigned",
         description: "The supervisor has been assigned successfully.",
@@ -172,7 +192,7 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
       });
       setAddDialogOpen(false);
       addForm.reset();
-      setNewProjectSupervisorId("");
+      setNewProjectSupervisorId("none");
     },
     onError: (error: any) => {
       toast({
@@ -218,7 +238,7 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
     const { createdBy, ...projectData } = data;
     createMutation.mutate({
       ...projectData,
-      ...(newProjectSupervisorId && { supervisorId: newProjectSupervisorId }),
+      ...(newProjectSupervisorId && newProjectSupervisorId !== "none" && { supervisorId: newProjectSupervisorId }),
     });
   };
 
@@ -392,7 +412,7 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
       </Card>
 
       {/* Add Dialog */}
-      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+      <Dialog open={addDialogOpen} onOpenChange={handleAddDialogChange}>
         <DialogContent data-testid="dialog-add-project">
           <DialogHeader>
             <DialogTitle>Add Project</DialogTitle>
@@ -496,12 +516,12 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
                       <SelectValue placeholder="Select a supervisor to assign" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">None (assign later)</SelectItem>
+                      <SelectItem value="none">None (assign later)</SelectItem>
                       {users
                         ?.filter((u) => u.role === "supervisor")
                         .map((supervisor) => (
                           <SelectItem key={supervisor.id} value={supervisor.id}>
-                            {supervisor.name} ({supervisor.email})
+                            {supervisor.firstName} {supervisor.lastName} ({supervisor.email})
                           </SelectItem>
                         ))}
                     </SelectContent>
@@ -701,6 +721,19 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
               </TabsList>
               
               <TabsContent value="managers" className="space-y-4 mt-4">
+                {projectManagers && projectManagers.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">Assigned Project Managers</h4>
+                    <div className="space-y-2">
+                      {projectManagers.map((manager) => (
+                        <div key={manager.id} className="flex items-center justify-between p-2 border rounded" data-testid={`assigned-manager-${manager.id}`}>
+                          <span className="text-sm">{manager.firstName} {manager.lastName} ({manager.email})</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
                 <div className="flex gap-2">
                   <Select 
                     value={selectedManagerId} 
@@ -742,6 +775,19 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
               </TabsContent>
               
               <TabsContent value="supervisors" className="space-y-4 mt-4">
+                {projectSupervisors && projectSupervisors.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">Assigned Supervisors</h4>
+                    <div className="space-y-2">
+                      {projectSupervisors.map((supervisor) => (
+                        <div key={supervisor.id} className="flex items-center justify-between p-2 border rounded" data-testid={`assigned-supervisor-${supervisor.id}`}>
+                          <span className="text-sm">{supervisor.firstName} {supervisor.lastName} ({supervisor.email})</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
                 <div className="flex gap-2">
                   <Select 
                     value={selectedSupervisorId} 
