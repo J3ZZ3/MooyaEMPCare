@@ -21,8 +21,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ArrowLeft, UserPlus, MapPin, Calendar, DollarSign } from "lucide-react";
+import { Loader2, ArrowLeft, UserPlus, MapPin, Calendar, DollarSign, TrendingUp, AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Project, User, Labourer, EmployeeType } from "@shared/schema";
@@ -146,6 +147,12 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
   const totalMetersOpened = workLogs.reduce((sum: number, log: any) => sum + (Number(log.openTrenchingMeters) || 0), 0);
   const totalMetersClosed = workLogs.reduce((sum: number, log: any) => sum + (Number(log.closeTrenchingMeters) || 0), 0);
   const totalEarnings = workLogs.reduce((sum: number, log: any) => sum + (Number(log.totalEarnings) || 0), 0);
+  
+  // Budget tracking calculations
+  const budget = project.budget ? Number(project.budget) : 0;
+  const remainingBudget = budget - totalEarnings;
+  const budgetUsedPercentage = budget > 0 ? (totalEarnings / budget) * 100 : 0;
+  const isOverBudget = totalEarnings > budget && budget > 0;
 
   return (
     <div className="space-y-6">
@@ -200,21 +207,9 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
               <h3 className="font-semibold mb-3">Payment Details</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Payment Period:</span>
+                  <span className="text-muted-foreground">Payment Frequency:</span>
                   <span className="font-medium capitalize">{project.paymentPeriod || "fortnightly"}</span>
                 </div>
-                {project.defaultOpenRate && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Default Opening Rate:</span>
-                    <span className="font-medium">R{Number(project.defaultOpenRate).toFixed(2)}/m</span>
-                  </div>
-                )}
-                {project.defaultCloseRate && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Default Closing Rate:</span>
-                    <span className="font-medium">R{Number(project.defaultCloseRate).toFixed(2)}/m</span>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -371,6 +366,70 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
               </CardContent>
             </Card>
           </div>
+
+          {budget > 0 && (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" />
+                  Budget Tracking
+                </CardTitle>
+                {isOverBudget && (
+                  <Badge variant="destructive" className="gap-1" data-testid="badge-over-budget">
+                    <AlertTriangle className="h-3 w-3" />
+                    Over Budget
+                  </Badge>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <div className="text-sm text-muted-foreground mb-1">Budget Allocated</div>
+                    <div className="text-lg font-semibold" data-testid="text-budget-allocated">
+                      R{budget.toLocaleString()}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground mb-1">Total Spending</div>
+                    <div className="text-lg font-semibold" data-testid="text-total-spending">
+                      R{totalEarnings.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground mb-1">Remaining</div>
+                    <div 
+                      className={`text-lg font-semibold ${isOverBudget ? 'text-destructive' : 'text-foreground'}`}
+                      data-testid="text-remaining-budget"
+                    >
+                      {isOverBudget ? '-' : ''}R{Math.abs(remainingBudget).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Budget Used</span>
+                    <span className="font-medium" data-testid="text-budget-percentage">
+                      {budgetUsedPercentage.toFixed(1)}%
+                    </span>
+                  </div>
+                  <Progress 
+                    value={Math.min(budgetUsedPercentage, 100)} 
+                    className="h-2"
+                    data-testid="progress-budget"
+                  />
+                </div>
+
+                {isOverBudget && (
+                  <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3">
+                    <p className="text-sm text-destructive font-medium">
+                      Project has exceeded budget by R{Math.abs(remainingBudget).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

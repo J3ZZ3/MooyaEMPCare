@@ -426,6 +426,8 @@ export const insertProjectSchema = createInsertSchema(projects).omit({
   createdAt: true,
   updatedAt: true,
   startDate: true,
+  defaultOpenRate: true,
+  defaultCloseRate: true,
 });
 
 export const insertPayRateSchema = createInsertSchema(payRates).omit({

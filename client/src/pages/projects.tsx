@@ -91,8 +91,6 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
       budget: "",
       status: "active",
       paymentPeriod: "fortnightly",
-      defaultOpenRate: "",
-      defaultCloseRate: "",
       createdBy: "",
     },
   });
@@ -234,8 +232,6 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
       budget: project.budget ? String(project.budget) : "",
       status: project.status,
       paymentPeriod: project.paymentPeriod || "fortnightly",
-      defaultOpenRate: project.defaultOpenRate ? String(project.defaultOpenRate) : "",
-      defaultCloseRate: project.defaultCloseRate ? String(project.defaultCloseRate) : "",
       createdBy: project.createdBy,
     });
     setEditDialogOpen(true);
