@@ -368,11 +368,11 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
             
             const dateStats = {
               totalOpenMeters: filteredWorkLogs.reduce((sum: number, log: any) => 
-                sum + Number(log.openTrenchingMeters), 0),
+                sum + (Number(log.openTrenchingMeters) || 0), 0),
               totalCloseMeters: filteredWorkLogs.reduce((sum: number, log: any) => 
-                sum + Number(log.closeTrenchingMeters), 0),
+                sum + (Number(log.closeTrenchingMeters) || 0), 0),
               totalEarnings: filteredWorkLogs.reduce((sum: number, log: any) => 
-                sum + Number(log.totalEarnings), 0),
+                sum + (Number(log.totalEarnings) || 0), 0),
               workersCount: new Set(filteredWorkLogs.map((log: any) => log.labourerId)).size,
             };
 
@@ -487,13 +487,13 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
                                     {labourer ? `${labourer.firstName} ${labourer.surname}` : "Unknown"}
                                   </TableCell>
                                   <TableCell className="text-right font-mono">
-                                    {Number(log.openTrenchingMeters).toFixed(1)}
+                                    {(Number(log.openTrenchingMeters) || 0).toFixed(1)}
                                   </TableCell>
                                   <TableCell className="text-right font-mono">
-                                    {Number(log.closeTrenchingMeters).toFixed(1)}
+                                    {(Number(log.closeTrenchingMeters) || 0).toFixed(1)}
                                   </TableCell>
                                   <TableCell className="text-right font-mono text-green-600 dark:text-green-400">
-                                    R{Number(log.totalEarnings).toFixed(2)}
+                                    R{(Number(log.totalEarnings) || 0).toFixed(2)}
                                   </TableCell>
                                   <TableCell className="text-right">
                                     <Button

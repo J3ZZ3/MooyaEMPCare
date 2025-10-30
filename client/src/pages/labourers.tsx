@@ -42,8 +42,9 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { validateSAId, formatDateForInput } from "@/lib/saIdValidation";
 import { insertLabourerSchema, type Labourer, type Project, type EmployeeType, type User } from "@shared/schema";
 import { z } from "zod";
-import { UserPlus, Search, Eye } from "lucide-react";
+import { UserPlus, Search, Eye, Info } from "lucide-react";
 import { format } from "date-fns";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type LabourerFormData = z.infer<typeof insertLabourerSchema>;
 
@@ -267,6 +268,14 @@ export default function LabourersPage() {
               <DialogHeader>
                 <DialogTitle>Onboard New Labourer</DialogTitle>
               </DialogHeader>
+              
+              <Alert className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+                <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <AlertDescription className="text-sm text-blue-900 dark:text-blue-100">
+                  A login account will be automatically created for this labourer. They can log in using their <strong>contact number or email</strong> as username and <strong>ID number/passport</strong> as password.
+                </AlertDescription>
+              </Alert>
+
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                   <div className="grid grid-cols-2 gap-4">
@@ -445,9 +454,9 @@ export default function LabourersPage() {
                       name="email"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Email (Optional)</FormLabel>
+                          <FormLabel>Email (for login)</FormLabel>
                           <FormControl>
-                            <Input {...field} type="email" data-testid="input-email" />
+                            <Input {...field} type="email" placeholder="Optional" data-testid="input-email" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
