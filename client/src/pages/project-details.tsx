@@ -23,12 +23,14 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ArrowLeft, UserPlus, MapPin, Calendar, DollarSign, TrendingUp, AlertTriangle, FileEdit } from "lucide-react";
+import { Loader2, ArrowLeft, UserPlus, MapPin, Calendar, DollarSign, TrendingUp, AlertTriangle, FileEdit, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Project, User, Labourer, EmployeeType } from "@shared/schema";
-import { format } from "date-fns";
+import { format, startOfDay, isSameDay } from "date-fns";
 import CorrectionRequestDialog from "@/components/CorrectionRequestDialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 
 interface ProjectDetailsProps {
   user: User;
@@ -42,6 +44,9 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
   const [selectedLabourerIds, setSelectedLabourerIds] = useState<string[]>([]);
   const [correctionDialogOpen, setCorrectionDialogOpen] = useState(false);
   const [selectedEntity, setSelectedEntity] = useState<{ type: "labourer" | "work_log"; id: string; data: any; displayName?: string } | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 15;
 
   const { data: project, isLoading: projectLoading } = useQuery<Project>({
     queryKey: [`/api/projects/${projectId}`],
@@ -352,77 +357,211 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
         </TabsContent>
 
         <TabsContent value="work-logs" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Work Log History</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {workLogs.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">
-                  No work logs recorded for this project yet
-                </p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Labourer</TableHead>
-                      <TableHead className="text-right">Open Trenching (m)</TableHead>
-                      <TableHead className="text-right">Close Trenching (m)</TableHead>
-                      <TableHead className="text-right">Total Earnings</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {workLogs.map((log: any) => {
-                      const labourer = labourers.find(l => l.id === log.labourerId);
-                      return (
-                        <TableRow key={log.id} data-testid={`row-work-log-${log.id}`}>
-                          <TableCell>
-                            {format(new Date(log.workDate), "MMM d, yyyy")}
-                          </TableCell>
-                          <TableCell className="font-medium">
-                            {labourer ? `${labourer.firstName} ${labourer.surname}` : "Unknown"}
-                          </TableCell>
-                          <TableCell className="text-right font-mono">
-                            {Number(log.openTrenchingMeters).toFixed(1)}
-                          </TableCell>
-                          <TableCell className="text-right font-mono">
-                            {Number(log.closeTrenchingMeters).toFixed(1)}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-green-600 dark:text-green-400">
-                            R{Number(log.totalEarnings).toFixed(2)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedEntity({
-                                  type: "work_log",
-                                  id: log.id,
-                                  data: {
-                                    ...log,
-                                    workDate: format(new Date(log.workDate), "yyyy-MM-dd")
-                                  },
-                                  displayName: `${labourer ? `${labourer.firstName} ${labourer.surname}` : "Unknown"} - ${format(new Date(log.workDate), "MMM d, yyyy")}`
-                                });
-                                setCorrectionDialogOpen(true);
-                              }}
-                              data-testid={`button-request-correction-work-log-${log.id}`}
-                            >
-                              <FileEdit className="h-4 w-4 mr-2" />
-                              Request Correction
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+          {(() => {
+            const filteredWorkLogs = workLogs.filter((log: any) => 
+              isSameDay(new Date(log.workDate), selectedDate)
+            );
+            
+            const totalPages = Math.ceil(filteredWorkLogs.length / itemsPerPage);
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const paginatedWorkLogs = filteredWorkLogs.slice(startIndex, startIndex + itemsPerPage);
+            
+            const dateStats = {
+              totalOpenMeters: filteredWorkLogs.reduce((sum: number, log: any) => 
+                sum + Number(log.openTrenchingMeters), 0),
+              totalCloseMeters: filteredWorkLogs.reduce((sum: number, log: any) => 
+                sum + Number(log.closeTrenchingMeters), 0),
+              totalEarnings: filteredWorkLogs.reduce((sum: number, log: any) => 
+                sum + Number(log.totalEarnings), 0),
+              workersCount: new Set(filteredWorkLogs.map((log: any) => log.labourerId)).size,
+            };
+
+            return (
+              <>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                    <CardTitle>Work Log History</CardTitle>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          data-testid="button-select-work-log-date"
+                        >
+                          <Calendar className="h-4 w-4 mr-2" />
+                          {format(selectedDate, "MMM d, yyyy")}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="end">
+                        <CalendarComponent
+                          mode="single"
+                          selected={selectedDate}
+                          onSelect={(date) => {
+                            if (date) {
+                              setSelectedDate(date);
+                              setCurrentPage(1);
+                            }
+                          }}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-sm font-medium text-muted-foreground">
+                            Workers
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold" data-testid="text-date-workers-count">
+                            {dateStats.workersCount}
+                          </div>
+                        </CardContent>
+                      </Card>
+                      
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-sm font-medium text-muted-foreground">
+                            Open Meters
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold" data-testid="text-date-open-meters">
+                            {dateStats.totalOpenMeters.toFixed(1)} m
+                          </div>
+                        </CardContent>
+                      </Card>
+                      
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-sm font-medium text-muted-foreground">
+                            Close Meters
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold" data-testid="text-date-close-meters">
+                            {dateStats.totalCloseMeters.toFixed(1)} m
+                          </div>
+                        </CardContent>
+                      </Card>
+                      
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-sm font-medium text-muted-foreground">
+                            Total Earnings
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold text-green-600 dark:text-green-400" data-testid="text-date-total-earnings">
+                            R{dateStats.totalEarnings.toFixed(2)}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {filteredWorkLogs.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">
+                        No work logs recorded for {format(selectedDate, "MMM d, yyyy")}
+                      </p>
+                    ) : (
+                      <>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Labourer</TableHead>
+                              <TableHead className="text-right">Open Trenching (m)</TableHead>
+                              <TableHead className="text-right">Close Trenching (m)</TableHead>
+                              <TableHead className="text-right">Total Earnings</TableHead>
+                              <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {paginatedWorkLogs.map((log: any) => {
+                              const labourer = labourers.find(l => l.id === log.labourerId);
+                              return (
+                                <TableRow key={log.id} data-testid={`row-work-log-${log.id}`}>
+                                  <TableCell className="font-medium">
+                                    {labourer ? `${labourer.firstName} ${labourer.surname}` : "Unknown"}
+                                  </TableCell>
+                                  <TableCell className="text-right font-mono">
+                                    {Number(log.openTrenchingMeters).toFixed(1)}
+                                  </TableCell>
+                                  <TableCell className="text-right font-mono">
+                                    {Number(log.closeTrenchingMeters).toFixed(1)}
+                                  </TableCell>
+                                  <TableCell className="text-right font-mono text-green-600 dark:text-green-400">
+                                    R{Number(log.totalEarnings).toFixed(2)}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setSelectedEntity({
+                                          type: "work_log",
+                                          id: log.id,
+                                          data: {
+                                            ...log,
+                                            workDate: format(new Date(log.workDate), "yyyy-MM-dd")
+                                          },
+                                          displayName: `${labourer ? `${labourer.firstName} ${labourer.surname}` : "Unknown"} - ${format(new Date(log.workDate), "MMM d, yyyy")}`
+                                        });
+                                        setCorrectionDialogOpen(true);
+                                      }}
+                                      data-testid={`button-request-correction-work-log-${log.id}`}
+                                    >
+                                      <FileEdit className="h-4 w-4 mr-2" />
+                                      Request Correction
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+
+                        {totalPages > 1 && (
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm text-muted-foreground">
+                              Showing {startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredWorkLogs.length)} of {filteredWorkLogs.length} entries
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                disabled={currentPage === 1}
+                                data-testid="button-previous-page"
+                              >
+                                <ChevronLeft className="h-4 w-4" />
+                                Previous
+                              </Button>
+                              <span className="text-sm" data-testid="text-page-info">
+                                Page {currentPage} of {totalPages}
+                              </span>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                disabled={currentPage === totalPages}
+                                data-testid="button-next-page"
+                              >
+                                Next
+                                <ChevronRight className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            );
+          })()}
         </TabsContent>
 
         <TabsContent value="progress" className="space-y-4">
