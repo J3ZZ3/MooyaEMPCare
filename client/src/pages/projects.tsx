@@ -80,8 +80,10 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
   const [selectedManagerId, setSelectedManagerId] = useState("");
   const [selectedSupervisorId, setSelectedSupervisorId] = useState("");
 
-  const canManage = user.role === "super_admin" || user.role === "admin" || user.role === "project_manager";
-  const canAssignTeam = canManage;
+  // Separate permissions for different operations
+  const canCreate = user.role === "super_admin" || user.role === "admin";
+  const canAssignTeam = user.role === "super_admin" || user.role === "admin";
+  const canEditStatus = user.role === "super_admin" || user.role === "admin" || user.role === "project_manager";
 
   const addForm = useForm<ProjectFormData>({
     resolver: zodResolver(insertProjectSchema),
@@ -218,9 +220,15 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
   const handleEdit = (data: ProjectFormData) => {
     if (!selectedProject) return;
     const { createdBy, ...projectData } = data;
+    
+    // PMs can only update status, admins can update all fields
+    const updateData = canCreate 
+      ? projectData 
+      : { status: projectData.status };
+    
     updateMutation.mutate({
       id: selectedProject.id,
-      data: projectData,
+      data: updateData,
     });
   };
 
@@ -259,7 +267,7 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
             Manage fibre deployment projects and teams
           </p>
         </div>
-        {canManage && (
+        {canCreate && (
           <Button
             onClick={() => {
               addForm.reset();
@@ -340,16 +348,18 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openTeamDialog(project)}
-                          data-testid={`button-team-${project.id}`}
-                          title="Assign Team"
-                        >
-                          <Users className="h-4 w-4" />
-                        </Button>
-                        {canManage && (
+                        {canAssignTeam && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openTeamDialog(project)}
+                            data-testid={`button-team-${project.id}`}
+                            title="Assign Team"
+                          >
+                            <Users className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {canEditStatus && (
                           <Button
                             variant="ghost"
                             size="icon"
@@ -529,72 +539,76 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
           <DialogHeader>
             <DialogTitle>Edit Project</DialogTitle>
             <DialogDescription>
-              Update project details and settings.
+              {canCreate ? "Update project details and settings." : "Update project status."}
             </DialogDescription>
           </DialogHeader>
           <Form {...editForm}>
             <form onSubmit={editForm.handleSubmit(handleEdit)} className="space-y-4">
-              <FormField
-                control={editForm.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Project Name *</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="e.g., Johannesburg Fibre Rollout Phase 1"
-                        {...field}
-                        data-testid="input-edit-project-name"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="location"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Location</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="e.g., Sandton, Johannesburg"
-                        {...field}
-                        value={field.value || ""}
-                        data-testid="input-edit-project-location"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="budget"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Budget (ZAR)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="text"
-                        inputMode="decimal"
-                        placeholder="e.g., 5000000"
-                        {...field}
-                        value={field.value || ""}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          if (value === "" || /^\d*\.?\d*$/.test(value)) {
-                            field.onChange(value);
-                          }
-                        }}
-                        data-testid="input-edit-project-budget"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {canCreate && (
+                <>
+                  <FormField
+                    control={editForm.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Project Name *</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., Johannesburg Fibre Rollout Phase 1"
+                            {...field}
+                            data-testid="input-edit-project-name"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={editForm.control}
+                    name="location"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Location</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., Sandton, Johannesburg"
+                            {...field}
+                            value={field.value || ""}
+                            data-testid="input-edit-project-location"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={editForm.control}
+                    name="budget"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Budget (ZAR)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="text"
+                            inputMode="decimal"
+                            placeholder="e.g., 5000000"
+                            {...field}
+                            value={field.value || ""}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              if (value === "" || /^\d*\.?\d*$/.test(value)) {
+                                field.onChange(value);
+                              }
+                            }}
+                            data-testid="input-edit-project-budget"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
               <FormField
                 control={editForm.control}
                 name="status"

@@ -297,9 +297,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/projects/:id", isAuthenticated, requireRole("super_admin", "admin", "project_manager"), async (req, res) => {
+  app.put("/api/projects/:id", isAuthenticated, requireRole("super_admin", "admin", "project_manager"), async (req: any, res) => {
     try {
       const data = insertProjectSchema.partial().parse(req.body);
+      
+      // Project managers can only update status, not other fields
+      if (req.dbUser.role === "project_manager") {
+        const allowedFields = ["status"];
+        const submittedFields = Object.keys(data);
+        const unauthorizedFields = submittedFields.filter(field => !allowedFields.includes(field));
+        
+        if (unauthorizedFields.length > 0) {
+          return res.status(403).json({ 
+            message: `Project managers can only update status. Unauthorized fields: ${unauthorizedFields.join(", ")}` 
+          });
+        }
+      }
+      
       const project = await storage.updateProject(req.params.id, data);
       res.json(project);
     } catch (error: any) {
