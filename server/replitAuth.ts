@@ -10,6 +10,14 @@ import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
 import { storage } from "./storage";
 
+// Extend session data to include labourer session properties
+declare module 'express-session' {
+  interface SessionData {
+    isLabourerSession?: boolean;
+    labourerId?: string;
+  }
+}
+
 const getOidcConfig = memoize(
   async () => {
     return await client.discovery(
@@ -243,6 +251,11 @@ export async function setupAuth(app: Express) {
           if (err) {
             return next(err);
           }
+          
+          // Mark session as a labourer session for session isolation
+          req.session.isLabourerSession = true;
+          req.session.labourerId = user.labourerId;
+          
           return res.json({ 
             success: true, 
             labourer: {
