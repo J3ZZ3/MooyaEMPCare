@@ -695,6 +695,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Worker Activity Matrix - pivot table with workers as rows, dates as columns
+  app.get("/api/reports/worker-activity-matrix", isAuthenticated, async (req, res) => {
+    try {
+      const { projectId, startDate, endDate, metricType = 'total' } = req.query;
+
+      if (!projectId || !startDate || !endDate) {
+        return res.status(400).json({ message: "projectId, startDate, and endDate are required" });
+      }
+
+      const project = await storage.getProject(projectId as string);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      // Get work logs for the date range
+      const workLogs = await storage.getWorkLogsByDateRange(
+        projectId as string,
+        startDate as string,
+        endDate as string
+      );
+
+      // Get all labourers for the project
+      const labourers = await storage.getLabourers(projectId as string);
+      const labourerMap = new Map(labourers.map((l: any) => [l.id, l]));
+
+      // Generate all dates in the range
+      const start = new Date(startDate as string);
+      const end = new Date(endDate as string);
+      const dates: string[] = [];
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        dates.push(d.toISOString().split('T')[0]);
+      }
+
+      // Build matrix data structure
+      // Map: labourerId -> Map: date -> { opens, closes, total }
+      const matrixData = new Map<string, Map<string, { opens: number; closes: number; total: number }>>();
+
+      workLogs.forEach((log: any) => {
+        if (!matrixData.has(log.labourerId)) {
+          matrixData.set(log.labourerId, new Map());
+        }
+        
+        const labourerDates = matrixData.get(log.labourerId)!;
+        const opens = parseFloat(log.openTrenchingMeters || "0");
+        const closes = parseFloat(log.closeTrenchingMeters || "0");
+        
+        labourerDates.set(log.workDate, {
+          opens,
+          closes,
+          total: opens + closes
+        });
+      });
+
+      // Convert to array format for frontend
+      const rows = Array.from(matrixData.entries()).map(([labourerId, dateMap]) => {
+        const labourer = labourerMap.get(labourerId);
+        const labourerName = labourer ? `${labourer.firstName} ${labourer.surname}` : "Unknown";
+        const idNumber = labourer?.idNumber || "";
+        
+        // Build daily values array
+        const dailyValues = dates.map(date => {
+          const work = dateMap.get(date);
+          return work ? {
+            opens: work.opens,
+            closes: work.closes,
+            total: work.total
+          } : {
+            opens: 0,
+            closes: 0,
+            total: 0
+          };
+        });
+
+        // Calculate row totals
+        const rowTotals = {
+          opens: dailyValues.reduce((sum, day) => sum + day.opens, 0),
+          closes: dailyValues.reduce((sum, day) => sum + day.closes, 0),
+          total: dailyValues.reduce((sum, day) => sum + day.total, 0)
+        };
+
+        return {
+          labourerId,
+          labourerName,
+          idNumber,
+          dailyValues,
+          rowTotals
+        };
+      });
+
+      // Sort by labourer name
+      rows.sort((a, b) => a.labourerName.localeCompare(b.labourerName));
+
+      res.json({
+        projectId: project.id,
+        projectName: project.name,
+        startDate,
+        endDate,
+        dates,
+        rows,
+      });
+    } catch (error: any) {
+      console.error("Error generating worker activity matrix:", error);
+      res.status(500).json({ message: error.message || "Failed to generate worker activity matrix" });
+    }
+  });
+
   // ============= Pay Rate Routes =============
   app.get("/api/projects/:projectId/pay-rates", isAuthenticated, async (req, res) => {
     try {

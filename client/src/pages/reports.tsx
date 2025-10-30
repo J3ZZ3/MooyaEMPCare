@@ -66,6 +66,31 @@ interface WorkerActivityReport {
   };
 }
 
+interface WorkerMatrixRow {
+  labourerId: string;
+  labourerName: string;
+  idNumber: string;
+  dailyValues: Array<{
+    opens: number;
+    closes: number;
+    total: number;
+  }>;
+  rowTotals: {
+    opens: number;
+    closes: number;
+    total: number;
+  };
+}
+
+interface WorkerMatrixReport {
+  projectId: string;
+  projectName: string;
+  startDate: string;
+  endDate: string;
+  dates: string[];
+  rows: WorkerMatrixRow[];
+}
+
 export default function Reports({ user }: ReportsProps) {
   const { toast } = useToast();
   
@@ -84,6 +109,14 @@ export default function Reports({ user }: ReportsProps) {
   const [activityGroupBy, setActivityGroupBy] = useState<string>("daily");
   const [activityReport, setActivityReport] = useState<WorkerActivityReport | null>(null);
   const [isGeneratingActivity, setIsGeneratingActivity] = useState(false);
+
+  // Worker Matrix Report State
+  const [matrixProjectId, setMatrixProjectId] = useState<string>("");
+  const [matrixStartDate, setMatrixStartDate] = useState<string>("");
+  const [matrixEndDate, setMatrixEndDate] = useState<string>("");
+  const [matrixMetricType, setMatrixMetricType] = useState<string>("total");
+  const [matrixReport, setMatrixReport] = useState<WorkerMatrixReport | null>(null);
+  const [isGeneratingMatrix, setIsGeneratingMatrix] = useState(false);
 
   const { data: projects = [], isLoading: loadingProjects } = useQuery<Project[]>({
     queryKey: ["/api/projects"],
@@ -231,6 +264,58 @@ export default function Reports({ user }: ReportsProps) {
     document.body.removeChild(link);
   };
 
+  const generateMatrixReport = async () => {
+    // CRITICAL: Dates are mandatory for accurate reporting
+    if (!matrixProjectId || !matrixStartDate || !matrixEndDate) {
+      toast({
+        title: "Missing Required Information",
+        description: "Project and date range are required for matrix view",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (new Date(matrixEndDate) < new Date(matrixStartDate)) {
+      toast({
+        title: "Invalid Date Range",
+        description: "End date must be after start date",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsGeneratingMatrix(true);
+      const params = new URLSearchParams({
+        projectId: matrixProjectId,
+        startDate: matrixStartDate,
+        endDate: matrixEndDate,
+        metricType: matrixMetricType,
+      });
+      
+      const response = await fetch(`/api/reports/worker-activity-matrix?${params.toString()}`);
+      
+      if (!response.ok) {
+        throw new Error("Failed to generate worker activity matrix");
+      }
+      
+      const data: WorkerMatrixReport = await response.json();
+      setMatrixReport(data);
+      toast({
+        title: "Matrix Generated",
+        description: `Showing ${data.rows.length} workers across ${data.dates.length} days`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate worker activity matrix",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingMatrix(false);
+    }
+  };
+
   const exportActivityToCSV = () => {
     if (!activityReport) return;
 
@@ -311,17 +396,169 @@ export default function Reports({ user }: ReportsProps) {
         </div>
       </div>
 
-      <Tabs defaultValue="payroll" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+      <Tabs defaultValue="matrix" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="matrix" data-testid="tab-matrix">
+            <TrendingUp className="w-4 h-4 mr-2" />
+            Matrix View
+          </TabsTrigger>
+          <TabsTrigger value="activity" data-testid="tab-activity">
+            <FileText className="w-4 h-4 mr-2" />
+            Detailed View
+          </TabsTrigger>
           <TabsTrigger value="payroll" data-testid="tab-payroll">
             <FileText className="w-4 h-4 mr-2" />
             Payroll Summary
           </TabsTrigger>
-          <TabsTrigger value="activity" data-testid="tab-activity">
-            <TrendingUp className="w-4 h-4 mr-2" />
-            Worker Activity
-          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="matrix" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Worker Activity Matrix</CardTitle>
+              <CardDescription>📊 View all workers across all dates in a single grid - workers as rows, dates as columns</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="matrix-project">Project *</Label>
+                  <Select
+                    value={matrixProjectId}
+                    onValueChange={setMatrixProjectId}
+                    disabled={loadingProjects}
+                  >
+                    <SelectTrigger id="matrix-project" data-testid="select-matrix-project">
+                      <SelectValue placeholder="Select project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeProjects.map((project) => (
+                        <SelectItem key={project.id} value={project.id}>
+                          {project.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="matrix-start-date">Start Date *</Label>
+                  <Input
+                    id="matrix-start-date"
+                    type="date"
+                    value={matrixStartDate}
+                    onChange={(e) => setMatrixStartDate(e.target.value)}
+                    data-testid="input-matrix-start-date"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="matrix-end-date">End Date *</Label>
+                  <Input
+                    id="matrix-end-date"
+                    type="date"
+                    value={matrixEndDate}
+                    onChange={(e) => setMatrixEndDate(e.target.value)}
+                    data-testid="input-matrix-end-date"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="metric-type">Show Metric</Label>
+                  <Select value={matrixMetricType} onValueChange={setMatrixMetricType}>
+                    <SelectTrigger id="metric-type" data-testid="select-metric-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="opens">Open Trenches Only</SelectItem>
+                      <SelectItem value="closes">Close Trenches Only</SelectItem>
+                      <SelectItem value="total">Total Trenches</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Button
+                onClick={generateMatrixReport}
+                disabled={!matrixProjectId || !matrixStartDate || !matrixEndDate || isGeneratingMatrix}
+                className="w-full md:w-auto"
+                data-testid="button-generate-matrix"
+              >
+                {isGeneratingMatrix ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  "Generate Matrix"
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {matrixReport && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>
+                      {matrixMetricType === 'opens' && 'Open Trenches Matrix'}
+                      {matrixMetricType === 'closes' && 'Close Trenches Matrix'}
+                      {matrixMetricType === 'total' && 'Total Trenches Matrix'}
+                    </CardTitle>
+                    <CardDescription>
+                      Period: {new Date(matrixReport.startDate).toLocaleDateString()} to {new Date(matrixReport.endDate).toLocaleDateString()} • {matrixReport.rows.length} workers × {matrixReport.dates.length} days
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-md border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-yellow-100 dark:bg-yellow-900/30">
+                        <TableHead className="sticky left-0 bg-yellow-100 dark:bg-yellow-900/30 z-10 min-w-[200px]">Worker Name</TableHead>
+                        {matrixReport.dates.map((date) => (
+                          <TableHead key={date} className="text-center min-w-[80px]">
+                            {new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </TableHead>
+                        ))}
+                        <TableHead className="sticky right-0 bg-yellow-100 dark:bg-yellow-900/30 z-10 text-center min-w-[100px] font-bold">
+                          Total
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {matrixReport.rows.map((row) => (
+                        <TableRow key={row.labourerId} data-testid={`matrix-row-${row.labourerId}`}>
+                          <TableCell className="sticky left-0 bg-background z-10 font-medium">
+                            {row.labourerName}
+                          </TableCell>
+                          {row.dailyValues.map((dayValue, idx) => {
+                            const value = matrixMetricType === 'opens' ? dayValue.opens :
+                                        matrixMetricType === 'closes' ? dayValue.closes :
+                                        dayValue.total;
+                            return (
+                              <TableCell key={idx} className="text-center font-mono text-sm">
+                                {value > 0 ? value.toFixed(0) : '-'}
+                              </TableCell>
+                            );
+                          })}
+                          <TableCell className="sticky right-0 bg-muted/50 z-10 text-center font-bold">
+                            {matrixMetricType === 'opens' && row.rowTotals.opens.toFixed(0)}
+                            {matrixMetricType === 'closes' && row.rowTotals.closes.toFixed(0)}
+                            {matrixMetricType === 'total' && row.rowTotals.total.toFixed(0)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
 
         <TabsContent value="payroll" className="space-y-6 mt-6">
 
