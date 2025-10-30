@@ -10,27 +10,12 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import {
-  LayoutDashboard,
-  Briefcase,
-  Users,
-  DollarSign,
-  FileText,
-  Settings,
-  LogOut,
-  Shield,
-} from "lucide-react";
+import { LayoutDashboard, Briefcase, Users, DollarSign, FileText, Settings, LogOut } from "lucide-react";
 import RoleBadge from "./RoleBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import mooyaLogo from "@assets/Mooya Logo_1761683789909.png";
 
-type UserRole =
-  | "super_admin"
-  | "admin"
-  | "project_manager"
-  | "supervisor"
-  | "project_admin"
-  | "labourer";
+type UserRole = "super_admin" | "admin" | "project_manager" | "supervisor" | "project_admin" | "labourer";
 
 interface AppSidebarProps {
   userRole: UserRole;
@@ -49,9 +34,9 @@ const menuItems = {
     { title: "Labourers", icon: Users, path: "/labourers" },
     { title: "Reports", icon: FileText, path: "/reports" },
     { title: "Payments", icon: DollarSign, path: "/payments" },
+    { title: "Audit Trail", icon: FileText, path: "/audit" },
     { title: "Users", icon: Users, path: "/users" },
     { title: "Employee Types", icon: FileText, path: "/employee-types" },
-    { title: "Roles & Permissions", icon: Shield, path: "/roles" },
     { title: "Settings", icon: Settings, path: "/settings" },
   ],
   admin: [
@@ -61,10 +46,10 @@ const menuItems = {
     { title: "Labourers", icon: Users, path: "/labourers" },
     { title: "Reports", icon: FileText, path: "/reports" },
     { title: "Payments", icon: DollarSign, path: "/payments" },
+    { title: "Audit Trail", icon: FileText, path: "/audit" },
     { title: "Daily Work", icon: FileText, path: "/work-log" },
     { title: "Users", icon: Users, path: "/users" },
     { title: "Employee Types", icon: FileText, path: "/employee-types" },
-    { title: "Roles & Permissions", icon: Shield, path: "/roles" },
   ],
   project_manager: [
     { title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
@@ -73,7 +58,7 @@ const menuItems = {
     { title: "Labourers", icon: Users, path: "/labourers" },
     { title: "Reports", icon: FileText, path: "/reports" },
     { title: "Payments", icon: DollarSign, path: "/payments" },
-    { title: "Roles & Permissions", icon: Shield, path: "/roles" },
+    { title: "Audit Trail", icon: FileText, path: "/audit" },
   ],
   supervisor: [
     { title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
@@ -81,7 +66,7 @@ const menuItems = {
     { title: "Daily Work", icon: FileText, path: "/work-log" },
     { title: "Reports", icon: FileText, path: "/reports" },
     { title: "Payments", icon: DollarSign, path: "/payments" },
-    { title: "Roles & Permissions", icon: Shield, path: "/roles" },
+    { title: "Audit Trail", icon: FileText, path: "/audit" },
   ],
   project_admin: [
     { title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
@@ -89,12 +74,11 @@ const menuItems = {
     { title: "Labourers", icon: Users, path: "/labourers" },
     { title: "Reports", icon: FileText, path: "/reports" },
     { title: "Payments", icon: DollarSign, path: "/payments" },
-    { title: "Roles & Permissions", icon: Shield, path: "/roles" },
+    { title: "Audit Trail", icon: FileText, path: "/audit" },
   ],
   labourer: [
     { title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
     { title: "Work History", icon: FileText, path: "/work-history" },
-    { title: "Roles & Permissions", icon: Shield, path: "/roles" },
   ],
 };
 
@@ -104,14 +88,10 @@ export default function AppSidebar({
   userEmail,
   currentPath = "/dashboard",
   onNavigate,
-  onLogout,
+  onLogout
 }: AppSidebarProps) {
   const items = menuItems[userRole];
-  const initials = userName
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase();
+  const initials = userName.split(' ').map(n => n[0]).join('').toUpperCase();
 
   return (
     <Sidebar data-testid="sidebar-main">
@@ -154,9 +134,7 @@ export default function AppSidebar({
           </Avatar>
           <div className="flex-1 min-w-0">
             <p className="font-medium text-sm truncate">{userName}</p>
-            <p className="text-xs text-muted-foreground truncate">
-              {userEmail}
-            </p>
+            <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
           </div>
         </div>
         <RoleBadge role={userRole} />
