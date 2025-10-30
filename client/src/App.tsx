@@ -130,10 +130,15 @@ function AuthenticatedApp({ user }: { user: User }) {
 
 function AppContent() {
   const [location] = useLocation();
+  
+  // Check if we're on labourer routes (don't query /api/user for these)
+  const isLabourerRoute = location === "/labourer-login" || location === "/labourer-dashboard";
+  
   const { data: user, isLoading, error } = useQuery<User | null>({
     queryKey: ["/api/user"],
     queryFn: getQueryFn({ on401: "returnNull" }),
     retry: false,
+    enabled: !isLabourerRoute, // Only query for staff routes
   });
 
   // Public labourer login route
@@ -141,21 +146,9 @@ function AppContent() {
     return <LabourerLogin />;
   }
 
-  // Protected labourer dashboard route - verify auth before rendering
+  // Protected labourer dashboard route - labourer auth handled by backend APIs
   if (location === "/labourer-dashboard") {
-    if (isLoading) {
-      return (
-        <div className="min-h-screen flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      );
-    }
-    // Redirect to labourer login if not authenticated
-    if (!user) {
-      window.location.href = "/labourer-login";
-      return null;
-    }
-    return <LabourerDashboard user={user} />;
+    return <LabourerDashboard user={null} />;
   }
 
   // Staff routes - require OIDC authentication
