@@ -79,6 +79,7 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedManagerId, setSelectedManagerId] = useState("");
   const [selectedSupervisorId, setSelectedSupervisorId] = useState("");
+  const [newProjectSupervisorId, setNewProjectSupervisorId] = useState("");
 
   // Separate permissions for different operations
   const canCreate = user.role === "super_admin" || user.role === "admin";
@@ -114,7 +115,7 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
 
   const { data: users } = useQuery<User[]>({
     queryKey: ["/api/users"],
-    enabled: teamDialogOpen && canAssignTeam,
+    enabled: (teamDialogOpen || addDialogOpen) && canAssignTeam,
   });
 
   const assignManagerMutation = useMutation({
@@ -160,7 +161,7 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (data: Omit<ProjectFormData, "createdBy">) => {
+    mutationFn: async (data: Omit<ProjectFormData, "createdBy"> & { supervisorId?: string }) => {
       return apiRequest("POST", "/api/projects", data);
     },
     onSuccess: () => {
@@ -171,6 +172,7 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
       });
       setAddDialogOpen(false);
       addForm.reset();
+      setNewProjectSupervisorId("");
     },
     onError: (error: any) => {
       toast({
@@ -214,7 +216,10 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
 
   const handleAdd = (data: ProjectFormData) => {
     const { createdBy, ...projectData } = data;
-    createMutation.mutate(projectData);
+    createMutation.mutate({
+      ...projectData,
+      ...(newProjectSupervisorId && { supervisorId: newProjectSupervisorId }),
+    });
   };
 
   const handleEdit = (data: ProjectFormData) => {
@@ -483,6 +488,30 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
                 )}
               />
               
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium">Assign Supervisor (Optional)</label>
+                  <Select value={newProjectSupervisorId} onValueChange={setNewProjectSupervisorId}>
+                    <SelectTrigger data-testid="select-new-project-supervisor" className="mt-2">
+                      <SelectValue placeholder="Select a supervisor to assign" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">None (assign later)</SelectItem>
+                      {users
+                        ?.filter((u) => u.role === "supervisor")
+                        .map((supervisor) => (
+                          <SelectItem key={supervisor.id} value={supervisor.id}>
+                            {supervisor.name} ({supervisor.email})
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    You can assign a supervisor now or later from the Team button
+                  </p>
+                </div>
+              </div>
+
               <div className="bg-muted p-4 rounded-md">
                 <p className="text-sm text-muted-foreground">
                   <strong>Note:</strong> Pay rates (open/close trenching rates) are managed separately via the Pay Rates page after project creation.

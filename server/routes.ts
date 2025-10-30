@@ -287,8 +287,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Use dbUser.id (attached by requireRole middleware)
       const userId = req.dbUser.id;
-      const data = insertProjectSchema.parse({ ...req.body, createdBy: userId });
+      const { supervisorId, ...projectData } = req.body;
+      const data = insertProjectSchema.parse({ ...projectData, createdBy: userId });
       const project = await storage.createProject(data);
+      
+      // If supervisorId is provided, assign them to the project
+      if (supervisorId) {
+        await storage.assignProjectSupervisor(project.id, supervisorId);
+      }
       
       res.status(201).json(project);
     } catch (error: any) {
