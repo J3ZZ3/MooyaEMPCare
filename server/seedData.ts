@@ -426,9 +426,8 @@ async function seedData() {
             labourerId: labourer.id,
             projectId: project.id,
             workDate: dateStr,
-            openMeters: openMeters.toString(),
-            closeMeters: closeMeters.toString(),
-            totalMeters: (openMeters + closeMeters).toString(),
+            openTrenchingMeters: openMeters.toString(),
+            closeTrenchingMeters: closeMeters.toString(),
             totalEarnings,
             recordedBy: supervisorId,
           });
@@ -486,8 +485,8 @@ async function seedData() {
         
         // Create entries
         for (const [labourerId, logs] of Array.from(labourerWorkLogs.entries())) {
-          const openMeters = logs.reduce((sum, l) => sum + parseFloat(l.openMeters || "0"), 0);
-          const closeMeters = logs.reduce((sum, l) => sum + parseFloat(l.closeMeters || "0"), 0);
+          const openMeters = logs.reduce((sum, l) => sum + parseFloat(l.openTrenchingMeters || "0"), 0);
+          const closeMeters = logs.reduce((sum, l) => sum + parseFloat(l.closeTrenchingMeters || "0"), 0);
           const totalMeters = openMeters + closeMeters;
           const totalAmount = logs.reduce((sum, l) => sum + parseFloat(l.totalEarnings || "0"), 0);
           
@@ -536,8 +535,8 @@ async function seedData() {
         
         // Create entries
         for (const [labourerId, logs] of Array.from(labourerWorkLogs.entries())) {
-          const openMeters = logs.reduce((sum, l) => sum + parseFloat(l.openMeters || "0"), 0);
-          const closeMeters = logs.reduce((sum, l) => sum + parseFloat(l.closeMeters || "0"), 0);
+          const openMeters = logs.reduce((sum, l) => sum + parseFloat(l.openTrenchingMeters || "0"), 0);
+          const closeMeters = logs.reduce((sum, l) => sum + parseFloat(l.closeTrenchingMeters || "0"), 0);
           const totalMeters = openMeters + closeMeters;
           const totalAmount = logs.reduce((sum, l) => sum + parseFloat(l.totalEarnings || "0"), 0);
           

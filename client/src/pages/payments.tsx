@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Plus, Loader2, CheckCircle, XCircle, Send, Calendar, DollarSign } from "lucide-react";
+import { Plus, Loader2, CheckCircle, XCircle, Send, Calendar, DollarSign, Download } from "lucide-react";
 import { insertPaymentPeriodSchema } from "@shared/schema";
 import type { User, Project, PaymentPeriod, PaymentPeriodEntry, Labourer } from "@shared/schema";
 import type { z } from "zod";
@@ -446,7 +446,7 @@ export default function PaymentsPage({ user }: PaymentsPageProps) {
 
       {/* Period Details Dialog */}
       <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
-        <DialogContent className="max-w-4xl" data-testid="dialog-period-details">
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col" data-testid="dialog-period-details">
           <DialogHeader>
             <DialogTitle>Payment Period Details</DialogTitle>
             <DialogDescription>
@@ -458,58 +458,110 @@ export default function PaymentsPage({ user }: PaymentsPageProps) {
             </DialogDescription>
           </DialogHeader>
           
-          {selectedPeriod && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Status</p>
-                  <Badge className={statusColors[selectedPeriod.status]}>
-                    {statusLabels[selectedPeriod.status]}
-                  </Badge>
+          <div className="flex-1 overflow-y-auto">
+            {selectedPeriod && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Status</p>
+                    <Badge className={statusColors[selectedPeriod.status]}>
+                      {statusLabels[selectedPeriod.status]}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Amount</p>
+                    <p className="text-2xl font-bold">
+                      R {entries ? entries.reduce((sum, entry) => sum + parseFloat(entry.totalEarnings), 0).toFixed(2) : "0.00"}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Amount</p>
-                  <p className="text-2xl font-bold">
-                    R {entries ? entries.reduce((sum, entry) => sum + parseFloat(entry.totalEarnings), 0).toFixed(2) : "0.00"}
-                  </p>
-                </div>
+
+                {entries && entries.length > 0 && (
+                  <div>
+                    <h3 className="font-semibold mb-2">Payment Entries</h3>
+                    <div className="border rounded-md">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Labourer</TableHead>
+                            <TableHead>Days Worked</TableHead>
+                            <TableHead className="text-right">Open (m)</TableHead>
+                            <TableHead className="text-right">Close (m)</TableHead>
+                            <TableHead className="text-right">Total (m)</TableHead>
+                            <TableHead className="text-right">Earnings</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {entries.map(entry => (
+                            <TableRow key={entry.id}>
+                              <TableCell>{entry.labourerId}</TableCell>
+                              <TableCell>{entry.daysWorked}</TableCell>
+                              <TableCell className="text-right font-mono">{parseFloat(entry.openMeters || "0").toFixed(2)}</TableCell>
+                              <TableCell className="text-right font-mono">{parseFloat(entry.closeMeters || "0").toFixed(2)}</TableCell>
+                              <TableCell className="text-right font-mono">{parseFloat(entry.totalMeters).toFixed(2)}</TableCell>
+                              <TableCell className="text-right font-mono">
+                                R {parseFloat(entry.totalEarnings).toFixed(2)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
               </div>
+            )}
+          </div>
 
-              {entries && entries.length > 0 && (
-                <div>
-                  <h3 className="font-semibold mb-2">Payment Entries</h3>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Labourer</TableHead>
-                        <TableHead>Days Worked</TableHead>
-                        <TableHead className="text-right">Open (m)</TableHead>
-                        <TableHead className="text-right">Close (m)</TableHead>
-                        <TableHead className="text-right">Total (m)</TableHead>
-                        <TableHead className="text-right">Earnings</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {entries.map(entry => (
-                        <TableRow key={entry.id}>
-                          <TableCell>{entry.labourerId}</TableCell>
-                          <TableCell>{entry.daysWorked}</TableCell>
-                          <TableCell className="text-right font-mono">{parseFloat(entry.openMeters || "0").toFixed(2)}</TableCell>
-                          <TableCell className="text-right font-mono">{parseFloat(entry.closeMeters || "0").toFixed(2)}</TableCell>
-                          <TableCell className="text-right font-mono">{parseFloat(entry.totalMeters).toFixed(2)}</TableCell>
-                          <TableCell className="text-right font-mono">
-                            R {parseFloat(entry.totalEarnings).toFixed(2)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </div>
-          )}
-
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button 
+              variant="default"
+              onClick={async () => {
+                if (!selectedPeriod) return;
+                try {
+                  const response = await fetch(`/api/payment-periods/${selectedPeriod.id}/payment-file`);
+                  if (!response.ok) {
+                    const error = await response.json();
+                    toast({
+                      title: "Error generating payment file",
+                      description: error.message || "Failed to generate payment file",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  // Get filename from Content-Disposition header
+                  const contentDisposition = response.headers.get('Content-Disposition');
+                  const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
+                  const filename = filenameMatch ? filenameMatch[1] : 'payment_file.csv';
+                  
+                  // Download the file
+                  const blob = await response.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = filename;
+                  document.body.appendChild(a);
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                  document.body.removeChild(a);
+                  
+                  toast({
+                    title: "Payment file downloaded",
+                    description: `Successfully generated ${filename}`,
+                  });
+                } catch (error: any) {
+                  toast({
+                    title: "Download failed",
+                    description: error.message || "Failed to download payment file",
+                    variant: "destructive",
+                  });
+                }
+              }}
+              data-testid="button-download-payment-file"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download Payment File
+            </Button>
             <Button variant="outline" onClick={() => setDetailsDialogOpen(false)}>
               Close
             </Button>

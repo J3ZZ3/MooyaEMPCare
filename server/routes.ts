@@ -20,6 +20,7 @@ import {
   paymentPeriodEntries,
   paymentPeriods,
   projects,
+  labourers,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
@@ -1146,6 +1147,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching payment entries:", error);
       res.status(500).json({ message: "Failed to fetch payment entries" });
+    }
+  });
+
+  app.get("/api/payment-periods/:id/payment-file", isAuthenticated, requireRole("super_admin", "admin", "project_manager"), async (req: any, res) => {
+    try {
+      // Fetch payment period
+      const period = await storage.getPaymentPeriod(req.params.id);
+      if (!period) {
+        return res.status(404).json({ message: "Payment period not found" });
+      }
+
+      // Fetch project for naming
+      const project = await storage.getProject(period.projectId);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      // Check project-level authorization (unless admin/super_admin)
+      const user = req.dbUser;
+      if (user.role === "project_manager") {
+        const assignedProjects = await storage.getProjectsByManager(user.id);
+        const hasAccess = assignedProjects.some((p: any) => p.id === period.projectId);
+        if (!hasAccess) {
+          return res.status(403).json({ message: "Forbidden: You do not have access to this project" });
+        }
+      }
+
+      // Fetch entries with full labourer details
+      const entries = await db
+        .select({
+          entry: paymentPeriodEntries,
+          labourer: labourers,
+        })
+        .from(paymentPeriodEntries)
+        .innerJoin(labourers, eq(paymentPeriodEntries.labourerId, labourers.id))
+        .where(eq(paymentPeriodEntries.periodId, req.params.id));
+
+      // Validation checks
+      const validationErrors: string[] = [];
+      const accountNumbers = new Set<string>();
+      let totalAmount = 0;
+
+      for (const { entry, labourer } of entries) {
+        // Check all amounts are positive
+        const amount = parseFloat(entry.totalEarnings);
+        if (amount <= 0) {
+          validationErrors.push(`Entry for ${labourer.firstName} ${labourer.surname} has non-positive amount: ${amount}`);
+        }
+        totalAmount += amount;
+
+        // Check all banking details present
+        if (!labourer.accountNumber || !labourer.accountType || !labourer.branchCode) {
+          validationErrors.push(`Missing banking details for ${labourer.firstName} ${labourer.surname}`);
+        }
+
+        // Check for duplicate account numbers
+        if (accountNumbers.has(labourer.accountNumber)) {
+          validationErrors.push(`Duplicate account number: ${labourer.accountNumber}`);
+        }
+        accountNumbers.add(labourer.accountNumber);
+      }
+
+      // Check total matches period total
+      const periodTotal = parseFloat(period.totalAmount);
+      if (Math.abs(totalAmount - periodTotal) > 0.01) {
+        validationErrors.push(`Total amount mismatch: Entries sum to ${totalAmount.toFixed(2)}, period total is ${periodTotal.toFixed(2)}`);
+      }
+
+      if (validationErrors.length > 0) {
+        return res.status(400).json({ 
+          message: "Validation failed", 
+          errors: validationErrors 
+        });
+      }
+
+      // Generate CSV content
+      const csvRows: string[] = [];
+      // CSV Header
+      csvRows.push('Account Number,Account Type,Branch Code,Amount,Reference,Beneficiary Name');
+
+      // Format date for reference and filename
+      const endDate = typeof period.endDate === 'string' 
+        ? period.endDate.split('T')[0].replace(/-/g, '')
+        : new Date(period.endDate).toISOString().split('T')[0].replace(/-/g, '');
+      
+      // Add data rows
+      for (const { entry, labourer } of entries) {
+        const amount = parseFloat(entry.totalEarnings).toFixed(2);
+        const reference = `PAY-${project.name.replace(/[^A-Z0-9]/gi, '').toUpperCase()}-${endDate}`;
+        const beneficiaryName = `${labourer.firstName} ${labourer.surname}`;
+        
+        csvRows.push(
+          `${labourer.accountNumber},${labourer.accountType},${labourer.branchCode},${amount},${reference},${beneficiaryName}`
+        );
+      }
+
+      // Join with Windows line endings (CRLF)
+      const csvContent = csvRows.join('\r\n');
+
+      // Set headers for file download
+      const filename = `PAYMENT_${project.name.replace(/[^A-Z0-9]/gi, '_').toUpperCase()}_${endDate}.csv`;
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      
+      // Send CSV
+      res.send(csvContent);
+    } catch (error) {
+      console.error("Error generating payment file:", error);
+      res.status(500).json({ message: "Failed to generate payment file" });
     }
   });
 
