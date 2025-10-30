@@ -236,8 +236,13 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
 
   const handleAdd = (data: ProjectFormData) => {
     const { createdBy, ...projectData } = data;
-    createMutation.mutate({
+    // Convert empty budget string to undefined so it's not sent to the server
+    const cleanedData = {
       ...projectData,
+      budget: projectData.budget === "" ? undefined : projectData.budget,
+    };
+    createMutation.mutate({
+      ...cleanedData,
       ...(newProjectSupervisorId && newProjectSupervisorId !== "none" && { supervisorId: newProjectSupervisorId }),
     });
   };
@@ -246,10 +251,16 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
     if (!selectedProject) return;
     const { createdBy, ...projectData } = data;
     
+    // Convert empty budget string to undefined
+    const cleanedData = {
+      ...projectData,
+      budget: projectData.budget === "" ? undefined : projectData.budget,
+    };
+    
     // PMs can only update status, admins can update all fields
     const updateData = canCreate 
-      ? projectData 
-      : { status: projectData.status };
+      ? cleanedData 
+      : { status: cleanedData.status };
     
     updateMutation.mutate({
       id: selectedProject.id,
