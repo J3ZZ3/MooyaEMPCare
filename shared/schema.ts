@@ -213,6 +213,7 @@ export const labourers = pgTable("labourers", {
   firstName: varchar("first_name", { length: 100 }).notNull(),
   surname: varchar("surname", { length: 100 }).notNull(),
   idNumber: varchar("id_number", { length: 50 }).notNull(), // SA ID or Passport
+  passwordHash: varchar("password_hash", { length: 255 }), // Hashed RSA ID/Passport for login
   dateOfBirth: date("date_of_birth").notNull(),
   gender: varchar("gender", { length: 20 }),
   contactNumber: varchar("contact_number", { length: 20 }).notNull(),

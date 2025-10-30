@@ -1,4 +1,4 @@
-import { Switch, Route, Redirect } from "wouter";
+import { Switch, Route, Redirect, useLocation } from "wouter";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { queryClient, getQueryFn } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
@@ -19,13 +19,16 @@ import PaymentsPage from "@/pages/payments";
 import AuditPage from "@/pages/audit";
 import RolesPage from "@/pages/roles";
 import LabourerDashboard from "@/pages/labourer-dashboard";
+import LabourerLogin from "@/pages/labourer-login";
 import NotFound from "@/pages/not-found";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Loader2, Users } from "lucide-react";
 import type { User } from "@shared/schema";
 
 function LoginPage() {
+  const [, setLocation] = useLocation();
+  
   const handleLogin = () => {
     window.location.href = "/api/login";
   };
@@ -49,6 +52,26 @@ function LoginPage() {
           <p className="text-xs text-center text-muted-foreground">
             Access restricted to @mooya.co.za and @mooyawireless.co.za email addresses
           </p>
+          
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t"></div>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">or</span>
+            </div>
+          </div>
+
+          <Button
+            onClick={() => setLocation("/labourer-login")}
+            variant="outline"
+            className="w-full"
+            size="lg"
+            data-testid="button-labourer-login"
+          >
+            <Users className="mr-2 h-4 w-4" />
+            Labourer Login
+          </Button>
         </CardContent>
       </Card>
     </div>
@@ -106,12 +129,36 @@ function AuthenticatedApp({ user }: { user: User }) {
 }
 
 function AppContent() {
+  const [location] = useLocation();
   const { data: user, isLoading, error } = useQuery<User | null>({
     queryKey: ["/api/user"],
     queryFn: getQueryFn({ on401: "returnNull" }),
     retry: false,
   });
 
+  // Public labourer login route
+  if (location === "/labourer-login") {
+    return <LabourerLogin />;
+  }
+
+  // Protected labourer dashboard route - verify auth before rendering
+  if (location === "/labourer-dashboard") {
+    if (isLoading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      );
+    }
+    // Redirect to labourer login if not authenticated
+    if (!user) {
+      window.location.href = "/labourer-login";
+      return null;
+    }
+    return <LabourerDashboard user={user} />;
+  }
+
+  // Staff routes - require OIDC authentication
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">

@@ -1,5 +1,7 @@
 import * as client from "openid-client";
 import { Strategy, type VerifyFunction } from "openid-client/passport";
+import { Strategy as LocalStrategy } from "passport-local";
+import bcrypt from "bcrypt";
 
 import passport from "passport";
 import session from "express-session";
@@ -151,6 +153,46 @@ export async function setupAuth(app: Express) {
     }
   };
 
+  // Configure local strategy for labourer authentication
+  passport.use('labourer-local', new LocalStrategy(
+    {
+      usernameField: 'identifier', // phone or email
+      passwordField: 'password', // RSA ID or passport
+    },
+    async (identifier, password, done) => {
+      try {
+        // Find labourer by phone or email
+        const labourer = await storage.getLabourerByPhoneOrEmail(identifier);
+        
+        if (!labourer) {
+          return done(null, false, { message: 'Invalid credentials' });
+        }
+
+        // Check if password hash exists
+        if (!labourer.passwordHash) {
+          return done(null, false, { message: 'Account not set up for login. Please contact your supervisor.' });
+        }
+
+        // Verify password (RSA ID or Passport)
+        const isValid = await bcrypt.compare(password, labourer.passwordHash);
+        
+        if (!isValid) {
+          return done(null, false, { message: 'Invalid credentials' });
+        }
+
+        // Return labourer info for session
+        return done(null, {
+          labourerId: labourer.id,
+          isLabourerSession: true,
+          firstName: labourer.firstName,
+          surname: labourer.surname,
+        });
+      } catch (error) {
+        return done(error);
+      }
+    }
+  ));
+
   passport.serializeUser((user: Express.User, cb) => cb(null, user));
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
@@ -178,6 +220,45 @@ export async function setupAuth(app: Express) {
           post_logout_redirect_uri: `${req.protocol}://${req.hostname}`,
         }).href
       );
+    });
+  });
+
+  // Labourer login routes
+  app.post("/api/labourer/login", (req, res, next) => {
+    passport.authenticate('labourer-local', (err: any, user: any, info: any) => {
+      if (err) {
+        return next(err);
+      }
+      if (!user) {
+        return res.status(401).json({ message: info?.message || 'Invalid credentials' });
+      }
+      
+      // Regenerate session to prevent session fixation attacks
+      req.session.regenerate((err) => {
+        if (err) {
+          return next(err);
+        }
+        
+        req.login(user, (err) => {
+          if (err) {
+            return next(err);
+          }
+          return res.json({ 
+            success: true, 
+            labourer: {
+              id: user.labourerId,
+              firstName: user.firstName,
+              surname: user.surname,
+            }
+          });
+        });
+      });
+    })(req, res, next);
+  });
+
+  app.get("/api/labourer/logout", (req, res) => {
+    req.logout(() => {
+      res.json({ success: true });
     });
   });
 }
@@ -208,6 +289,32 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
   } catch (error) {
     res.status(401).json({ message: "Unauthorized" });
     return;
+  }
+};
+
+// Labourer authentication middleware
+export const isLabourerAuthenticated: RequestHandler = async (req, res, next) => {
+  const user = req.user as any;
+
+  // Explicitly reject staff sessions to prevent cross-mode interference
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  
+  if (!user.isLabourerSession) {
+    return res.status(403).json({ message: "This endpoint is for labourers only" });
+  }
+
+  // Fetch the full labourer record and attach to request
+  try {
+    const labourer = await storage.getLabourer(user.labourerId);
+    if (!labourer) {
+      return res.status(401).json({ message: "Labourer not found" });
+    }
+    (req as any).labourer = labourer;
+    next();
+  } catch (error) {
+    res.status(401).json({ message: "Unauthorized" });
   }
 };
 

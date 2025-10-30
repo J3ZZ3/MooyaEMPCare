@@ -30,7 +30,7 @@ import {
   type InsertCorrectionRequest,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, gte, lte, sql, inArray } from "drizzle-orm";
+import { eq, and, or, desc, gte, lte, sql, inArray } from "drizzle-orm";
 
 // Storage interface
 export interface IStorage {
@@ -65,6 +65,7 @@ export interface IStorage {
   getAvailableLabourers(): Promise<Labourer[]>;
   getLabourer(id: string): Promise<Labourer | undefined>;
   getLabourerByUserId(userId: string): Promise<Labourer | undefined>;
+  getLabourerByPhoneOrEmail(identifier: string): Promise<Labourer | undefined>;
   createLabourer(data: InsertLabourer): Promise<Labourer>;
   bulkCreateLabourers(data: InsertLabourer[]): Promise<Labourer[]>;
   updateLabourer(id: string, data: Partial<InsertLabourer>): Promise<Labourer>;
@@ -322,6 +323,19 @@ export class DatabaseStorage implements IStorage {
 
   async getLabourerByUserId(userId: string): Promise<Labourer | undefined> {
     const [labourer] = await db.select().from(labourers).where(eq(labourers.userId, userId));
+    return labourer || undefined;
+  }
+
+  async getLabourerByPhoneOrEmail(identifier: string): Promise<Labourer | undefined> {
+    const [labourer] = await db
+      .select()
+      .from(labourers)
+      .where(
+        or(
+          eq(labourers.contactNumber, identifier),
+          eq(labourers.email, identifier)
+        )
+      );
     return labourer || undefined;
   }
 

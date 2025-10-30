@@ -15,7 +15,7 @@ import type { User as UserType, Labourer } from "@shared/schema";
 import { format } from "date-fns";
 
 interface LabourerDashboardProps {
-  user: UserType;
+  user?: UserType | null;
 }
 
 export default function LabourerDashboard({ user }: LabourerDashboardProps) {
@@ -29,6 +29,10 @@ export default function LabourerDashboard({ user }: LabourerDashboardProps) {
 
   const { data: payments = [], isLoading: paymentsLoading } = useQuery<any[]>({
     queryKey: ["/api/my-payments"],
+  });
+
+  const { data: currentPeriod, isLoading: currentPeriodLoading } = useQuery<any>({
+    queryKey: ["/api/my-current-period"],
   });
 
   if (profileLoading) {
@@ -100,17 +104,37 @@ export default function LabourerDashboard({ user }: LabourerDashboardProps) {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <DollarSign className="h-4 w-4" />
+              Current Period Earnings
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400" data-testid="text-current-period-earnings">
+              R{currentPeriod?.currentPeriodEarnings?.toFixed(2) || "0.00"}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Total: R{totalEarnings.toFixed(2)}
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Briefcase className="h-4 w-4" />
-              Total Work Days
+              Days Worked This Period
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold" data-testid="text-total-work-days">
-              {workLogs.length}
+            <div className="text-2xl font-bold" data-testid="text-days-worked-period">
+              {currentPeriod?.daysWorkedThisPeriod || 0}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Total: {workLogs.length} days
             </div>
           </CardContent>
         </Card>
@@ -119,15 +143,15 @@ export default function LabourerDashboard({ user }: LabourerDashboardProps) {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Calendar className="h-4 w-4" />
-              Total Meters Worked
+              Next Payment Date
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold" data-testid="text-total-meters">
-              {(totalOpenMeters + totalCloseMeters).toFixed(1)} m
+            <div className="text-2xl font-bold" data-testid="text-next-payment-date">
+              {currentPeriod?.nextPaymentDate ? format(new Date(currentPeriod.nextPaymentDate), "MMM d") : "TBD"}
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              {totalOpenMeters.toFixed(1)}m opened, {totalCloseMeters.toFixed(1)}m closed
+              {currentPeriod?.nextPaymentDate ? format(new Date(currentPeriod.nextPaymentDate), "yyyy") : "No active period"}
             </div>
           </CardContent>
         </Card>
@@ -135,13 +159,16 @@ export default function LabourerDashboard({ user }: LabourerDashboardProps) {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <DollarSign className="h-4 w-4" />
-              Total Earnings
+              <Calendar className="h-4 w-4" />
+              Total Meters This Period
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600 dark:text-green-400" data-testid="text-total-earnings">
-              R{totalEarnings.toFixed(2)}
+            <div className="text-2xl font-bold" data-testid="text-total-meters-period">
+              {currentPeriod?.totalMetersThisPeriod?.toFixed(1) || "0.0"} m
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              All-time: {(totalOpenMeters + totalCloseMeters).toFixed(1)} m
             </div>
           </CardContent>
         </Card>

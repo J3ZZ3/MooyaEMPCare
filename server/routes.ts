@@ -1,7 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated, requireRole } from "./replitAuth";
+import { setupAuth, isAuthenticated, isLabourerAuthenticated, requireRole } from "./replitAuth";
+import bcrypt from "bcrypt";
 import {
   ObjectStorageService,
   ObjectNotFoundError,
@@ -427,6 +428,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Use dbUser.id (attached by requireRole middleware)
       const userId = req.dbUser.id;
       const data = insertLabourerSchema.parse({ ...req.body, createdBy: userId });
+      
+      // Hash the ID number for password authentication (only if idNumber exists and is non-empty)
+      if (data.idNumber && data.idNumber.trim()) {
+        const passwordHash = await bcrypt.hash(data.idNumber.trim(), 10);
+        data.passwordHash = passwordHash;
+      }
+      
       const labourer = await storage.createLabourer(data);
       res.status(201).json(labourer);
     } catch (error: any) {
@@ -445,9 +453,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "labourers array is required and must not be empty" });
       }
 
-      // Validate and add createdBy to each labourer
-      const validatedData = labourersData.map(labourer => 
-        insertLabourerSchema.parse({ ...labourer, createdBy: userId })
+      // Validate, add createdBy, and hash passwords for each labourer
+      const validatedData = await Promise.all(
+        labourersData.map(async (labourer) => {
+          const data = insertLabourerSchema.parse({ ...labourer, createdBy: userId });
+          
+          // Hash the ID number for password authentication (only if idNumber exists and is non-empty)
+          if (data.idNumber && data.idNumber.trim()) {
+            data.passwordHash = await bcrypt.hash(data.idNumber.trim(), 10);
+          }
+          
+          return data;
+        })
       );
       
       const created = await storage.bulkCreateLabourers(validatedData);
@@ -488,18 +505,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ============= Labourer Portal Routes (for labourer role users) =============
-  // Get labourer's own profile based on their userId
-  app.get("/api/my-labourer-profile", isAuthenticated, requireRole("labourer"), async (req: any, res) => {
+  // ============= Labourer Portal Routes (for labourer authentication via phone/email) =============
+  // Get labourer's own profile
+  app.get("/api/my-labourer-profile", isLabourerAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.dbUser.id;
-      const labourer = await storage.getLabourerByUserId(userId);
-      
-      if (!labourer) {
-        return res.status(404).json({ message: "Labourer profile not found" });
-      }
-      
-      res.json(labourer);
+      res.json(req.labourer);
     } catch (error) {
       console.error("Error fetching labourer profile:", error);
       res.status(500).json({ message: "Failed to fetch profile" });
@@ -507,16 +517,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get labourer's own work logs
-  app.get("/api/my-work-logs", isAuthenticated, requireRole("labourer"), async (req: any, res) => {
+  app.get("/api/my-work-logs", isLabourerAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.dbUser.id;
-      const labourer = await storage.getLabourerByUserId(userId);
-      
-      if (!labourer) {
-        return res.status(404).json({ message: "Labourer profile not found" });
-      }
-      
-      const workLogs = await storage.getWorkLogsByLabourer(labourer.id);
+      const workLogs = await storage.getWorkLogsByLabourer(req.labourer.id);
       res.json(workLogs);
     } catch (error) {
       console.error("Error fetching work logs:", error);
@@ -525,15 +528,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get labourer's payment entries across all payment periods
-  app.get("/api/my-payments", isAuthenticated, requireRole("labourer"), async (req: any, res) => {
+  app.get("/api/my-payments", isLabourerAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.dbUser.id;
-      const labourer = await storage.getLabourerByUserId(userId);
-      
-      if (!labourer) {
-        return res.status(404).json({ message: "Labourer profile not found" });
-      }
-      
       // Get all payment period entries for this labourer
       const entries = await db
         .select({
@@ -544,13 +540,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .from(paymentPeriodEntries)
         .innerJoin(paymentPeriods, eq(paymentPeriodEntries.periodId, paymentPeriods.id))
         .innerJoin(projects, eq(paymentPeriods.projectId, projects.id))
-        .where(eq(paymentPeriodEntries.labourerId, labourer.id))
+        .where(eq(paymentPeriodEntries.labourerId, req.labourer.id))
         .orderBy(desc(paymentPeriods.endDate));
       
       res.json(entries);
     } catch (error) {
       console.error("Error fetching payment entries:", error);
       res.status(500).json({ message: "Failed to fetch payment information" });
+    }
+  });
+
+  // Get labourer's current period summary (for dashboard)
+  app.get("/api/my-current-period", isLabourerAuthenticated, async (req: any, res) => {
+    try {
+      const labourerId = req.labourer.id;
+      const today = new Date();
+      
+      // Get all work logs for this labourer
+      const workLogs = await storage.getWorkLogsByLabourer(labourerId);
+      
+      // Get the labourer's current project
+      const labourer = req.labourer;
+      
+      // Find the current open or submitted payment period for the labourer's project
+      let currentPeriod: any = null;
+      let nextPaymentDate: string | null = null;
+      let currentPeriodEarnings = 0;
+      let daysWorkedThisPeriod = 0;
+      let totalMetersThisPeriod = 0;
+      
+      if (labourer.projectId) {
+        const periods = await db
+          .select()
+          .from(paymentPeriods)
+          .where(eq(paymentPeriods.projectId, labourer.projectId))
+          .orderBy(desc(paymentPeriods.endDate));
+        
+        // Find the current period (open or submitted)
+        currentPeriod = periods.find(p => p.status === 'open' || p.status === 'submitted');
+        
+        if (currentPeriod) {
+          nextPaymentDate = currentPeriod.endDate;
+          
+          // Calculate metrics for current period
+          const periodWorkLogs = workLogs.filter(log => {
+            const logDate = new Date(log.workDate);
+            return logDate >= new Date(currentPeriod.startDate) && 
+                   logDate <= new Date(currentPeriod.endDate);
+          });
+          
+          currentPeriodEarnings = periodWorkLogs.reduce((sum, log) => 
+            sum + (Number(log.totalEarnings) || 0), 0);
+          daysWorkedThisPeriod = periodWorkLogs.length;
+          totalMetersThisPeriod = periodWorkLogs.reduce((sum, log) => 
+            sum + (Number(log.openTrenchingMeters) || 0) + (Number(log.closeTrenchingMeters) || 0), 0);
+        }
+      }
+      
+      res.json({
+        currentPeriodEarnings,
+        daysWorkedThisPeriod,
+        totalMetersThisPeriod,
+        nextPaymentDate,
+      });
+    } catch (error) {
+      console.error("Error fetching current period:", error);
+      res.status(500).json({ message: "Failed to fetch current period data" });
     }
   });
 

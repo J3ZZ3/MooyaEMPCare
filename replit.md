@@ -14,9 +14,16 @@ Preferred communication style: Simple, everyday language.
 
 The application uses a modern React-based single-page application (SPA) architecture with TypeScript. UI is built with Tailwind CSS and shadcn/ui components (New York style), offering utility-first CSS, accessible components, custom design tokens, and dark mode support. The design adheres to Carbon Design System principles, prioritizing clarity and data density, with typography using IBM Plex Sans and IBM Plex Mono. State management is handled by TanStack Query for server state and local React state for UI concerns, using Wouter for lightweight client-side routing. Component architecture follows atomic design principles, with role-specific dashboards.
 
+**Authentication Flows**: The application supports two separate authentication flows:
+- **Staff Login** (/login): OIDC-based Google OAuth for administrators, project managers, and supervisors (@mooya.co.za, @mooyawireless.co.za, @xnext.co.za domains)
+- **Labourer Login** (/labourer-login): Custom phone/email + RSA ID/passport authentication for field labourers
+
 ### Backend Architecture
 
 The backend uses Express.js with Node.js, providing a RESTful API. Key features include:
+- **Dual Authentication System**: Passport.js with both OIDC strategy (staff) and Local strategy (labourers) with session regeneration for security
+- **Password Security**: RSA ID/passport numbers are hashed using bcrypt (10 salt rounds) and stored in labourers.passwordHash field
+- **Session Isolation**: Separate middleware (isAuthenticated for staff, isLabourerAuthenticated for labourers) prevents cross-mode session interference
 - **Labourer Assignment**: Allows batch assignment of labourers to projects, showing availability.
 - **Streamlined Project Creation**: Supervisors can be assigned during project creation in a single step. The Add Project dialog includes an optional supervisor selector, and the POST /api/projects endpoint accepts supervisorId to automatically create the assignment. Team Management dialog displays all assigned managers and supervisors for transparency.
 - **Payment Period Management**: Comprehensive workflow (create → submit → approve/reject) for payment periods across projects, with role-based permissions. Payment period entries track open/close meters separately with detailed breakdown (openMeters, closeMeters, totalMeters columns).
@@ -32,6 +39,10 @@ The backend uses Express.js with Node.js, providing a RESTful API. Key features 
   - Timezone-safe: Uses regex extraction for string dates and local component extraction for Date objects to prevent UTC drift
   - Historical edits blocked: Supervisors must submit correction requests for past entries
 - **Audit Trail & Correction Requests**: Tracks all data corrections through a formal review and approval process, providing transparency.
+- **Labourer Dashboard Enhancement**: 
+  - Current period metrics API (GET /api/my-current-period) calculates fortnightly earnings, days worked, next payment date, and total meters
+  - Dashboard displays 4 summary cards: Current Period Earnings (ZAR), Days Worked This Period, Next Payment Date, Total Meters This Period
+  - Each card shows current period value with all-time comparison
 - **Worker Activity Reporting**: Comprehensive reporting system with three report types:
   - **Matrix View**: Pivot table with workers as rows, dates as columns, showing both Open and Close trenches for each day. Includes three final columns: Final Opens (total opens), Final Closes (total closes), and Total Amount (earnings in Rand based on employee type rates).
   - **Detailed View**: Filterable activity breakdown by project, worker, date range, and grouping (daily/weekly/monthly) with CSV export.
