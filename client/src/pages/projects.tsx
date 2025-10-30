@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -456,75 +457,30 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
                 name="paymentPeriod"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Payment Period *</FormLabel>
+                    <FormLabel>Payment Frequency *</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value || "fortnightly"}>
                       <FormControl>
                         <SelectTrigger data-testid="select-payment-period">
-                          <SelectValue placeholder="Select payment period" />
+                          <SelectValue placeholder="Select payment frequency" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="fortnightly">Fortnightly</SelectItem>
+                        <SelectItem value="fortnightly">Fortnightly (every 2 weeks)</SelectItem>
                         <SelectItem value="monthly">Monthly</SelectItem>
                       </SelectContent>
                     </Select>
+                    <FormDescription>
+                      How often workers will be paid
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={addForm.control}
-                  name="defaultOpenRate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Opening Rate (ZAR/m)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="text"
-                          inputMode="decimal"
-                          placeholder="e.g., 50.00"
-                          {...field}
-                          value={field.value || ""}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            if (value === "" || /^\d*\.?\d*$/.test(value)) {
-                              field.onChange(value);
-                            }
-                          }}
-                          data-testid="input-default-open-rate"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={addForm.control}
-                  name="defaultCloseRate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Closing Rate (ZAR/m)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="text"
-                          inputMode="decimal"
-                          placeholder="e.g., 75.00"
-                          {...field}
-                          value={field.value || ""}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            if (value === "" || /^\d*\.?\d*$/.test(value)) {
-                              field.onChange(value);
-                            }
-                          }}
-                          data-testid="input-default-close-rate"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              
+              <div className="bg-muted p-4 rounded-md">
+                <p className="text-sm text-muted-foreground">
+                  <strong>Note:</strong> Pay rates (open/close trenching rates) are managed separately via the Pay Rates page after project creation.
+                </p>
               </div>
               <FormField
                 control={addForm.control}

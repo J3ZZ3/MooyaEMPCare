@@ -85,7 +85,6 @@ export default function PaymentsPage({ user }: PaymentsPageProps) {
       projectId: "",
       startDate: "",
       endDate: "",
-      totalAmount: "0",
     },
   });
 
@@ -123,12 +122,8 @@ export default function PaymentsPage({ user }: PaymentsPageProps) {
 
   const createMutation = useMutation({
     mutationFn: async (data: PaymentPeriodFormData) => {
-      // Ensure totalAmount is set to 0 if not provided
-      const payload = {
-        ...data,
-        totalAmount: data.totalAmount || "0",
-      };
-      return apiRequest("POST", "/api/payment-periods", payload);
+      // Backend will auto-calculate totalAmount from work logs
+      return apiRequest("POST", "/api/payment-periods", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/payment-periods/all"] });
@@ -429,19 +424,11 @@ export default function PaymentsPage({ user }: PaymentsPageProps) {
                 )}
               />
 
-              <FormField
-                control={createForm.control}
-                name="totalAmount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Total Amount (optional)</FormLabel>
-                    <FormControl>
-                      <Input type="number" step="0.01" placeholder="0.00" {...field} data-testid="input-total-amount" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="bg-muted p-4 rounded-md">
+                <p className="text-sm text-muted-foreground">
+                  <strong>Note:</strong> The total amount will be automatically calculated from work logs in this date range.
+                </p>
+              </div>
 
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>

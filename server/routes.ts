@@ -766,6 +766,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/payment-periods", isAuthenticated, requireRole("super_admin", "admin", "project_manager"), async (req, res) => {
     try {
       const data = insertPaymentPeriodSchema.parse(req.body);
+      
+      // Auto-calculate total amount from work logs in the date range
+      // Convert dates to yyyy-MM-dd strings
+      const startDateStr = typeof data.startDate === 'string' 
+        ? data.startDate.split('T')[0]
+        : (data.startDate as Date).toISOString().split('T')[0];
+      const endDateStr = typeof data.endDate === 'string'
+        ? data.endDate.split('T')[0]
+        : (data.endDate as Date).toISOString().split('T')[0];
+      
+      // Fetch all work logs for this project in the date range
+      const workLogs = await storage.getWorkLogsByDateRange(
+        data.projectId,
+        startDateStr,
+        endDateStr
+      );
+      
+      // Calculate total earnings from work logs
+      const totalAmount = workLogs.reduce((sum, log) => sum + Number(log.totalEarnings || 0), 0);
+      
+      // Set the calculated total amount
+      data.totalAmount = totalAmount.toString();
+      
       const period = await storage.createPaymentPeriod(data);
       res.status(201).json(period);
     } catch (error: any) {
