@@ -558,6 +558,143 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Worker Activity Report - detailed daily breakdown
+  app.get("/api/reports/worker-activity", isAuthenticated, async (req, res) => {
+    try {
+      const { projectId, labourerId, startDate, endDate, groupBy = 'daily' } = req.query;
+
+      if (!projectId || !startDate || !endDate) {
+        return res.status(400).json({ message: "projectId, startDate, and endDate are required" });
+      }
+
+      const project = await storage.getProject(projectId as string);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      // Get work logs for the date range
+      let workLogs = await storage.getWorkLogsByDateRange(
+        projectId as string,
+        startDate as string,
+        endDate as string
+      );
+
+      // Filter by labourer if specified
+      if (labourerId && labourerId !== 'all') {
+        workLogs = workLogs.filter(log => log.labourerId === labourerId);
+      }
+
+      // Get all labourers to enrich data
+      const labourers = await storage.getLabourers(projectId as string);
+      const labourerMap = new Map(labourers.map((l: any) => [l.id, l]));
+
+      // Enrich work logs with labourer details
+      const enrichedLogs = workLogs.map(log => {
+        const labourer = labourerMap.get(log.labourerId);
+        return {
+          workDate: log.workDate,
+          labourerId: log.labourerId,
+          labourerName: labourer ? `${labourer.firstName} ${labourer.surname}` : "Unknown",
+          idNumber: labourer?.idNumber || "",
+          openMeters: parseFloat(log.openTrenchingMeters || "0"),
+          closeMeters: parseFloat(log.closeTrenchingMeters || "0"),
+          totalMeters: parseFloat(log.openTrenchingMeters || "0") + parseFloat(log.closeTrenchingMeters || "0"),
+          earnings: parseFloat(log.totalEarnings || "0"),
+        };
+      });
+
+      // Group by requested period
+      let groupedData: any[] = [];
+      
+      if (groupBy === 'daily') {
+        // Already daily - just return enriched logs
+        groupedData = enrichedLogs;
+      } else if (groupBy === 'weekly') {
+        // Group by week
+        const weeklyMap = new Map<string, any>();
+        enrichedLogs.forEach(log => {
+          const date = new Date(log.workDate);
+          const weekStart = new Date(date);
+          weekStart.setDate(date.getDate() - date.getDay()); // Start of week (Sunday)
+          const weekKey = `${log.labourerId}-${weekStart.toISOString().split('T')[0]}`;
+          
+          const existing = weeklyMap.get(weekKey) || {
+            weekStart: weekStart.toISOString().split('T')[0],
+            labourerId: log.labourerId,
+            labourerName: log.labourerName,
+            idNumber: log.idNumber,
+            openMeters: 0,
+            closeMeters: 0,
+            totalMeters: 0,
+            earnings: 0,
+            daysWorked: 0,
+          };
+          
+          existing.openMeters += log.openMeters;
+          existing.closeMeters += log.closeMeters;
+          existing.totalMeters += log.totalMeters;
+          existing.earnings += log.earnings;
+          existing.daysWorked += 1;
+          
+          weeklyMap.set(weekKey, existing);
+        });
+        groupedData = Array.from(weeklyMap.values());
+      } else if (groupBy === 'monthly') {
+        // Group by month
+        const monthlyMap = new Map<string, any>();
+        enrichedLogs.forEach(log => {
+          const date = new Date(log.workDate);
+          const monthKey = `${log.labourerId}-${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          
+          const existing = monthlyMap.get(monthKey) || {
+            month: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
+            labourerId: log.labourerId,
+            labourerName: log.labourerName,
+            idNumber: log.idNumber,
+            openMeters: 0,
+            closeMeters: 0,
+            totalMeters: 0,
+            earnings: 0,
+            daysWorked: 0,
+          };
+          
+          existing.openMeters += log.openMeters;
+          existing.closeMeters += log.closeMeters;
+          existing.totalMeters += log.totalMeters;
+          existing.earnings += log.earnings;
+          existing.daysWorked += 1;
+          
+          monthlyMap.set(monthKey, existing);
+        });
+        groupedData = Array.from(monthlyMap.values());
+      }
+
+      // Calculate totals
+      const totalOpenMeters = groupedData.reduce((sum, row) => sum + row.openMeters, 0);
+      const totalCloseMeters = groupedData.reduce((sum, row) => sum + row.closeMeters, 0);
+      const totalMeters = groupedData.reduce((sum, row) => sum + row.totalMeters, 0);
+      const totalEarnings = groupedData.reduce((sum, row) => sum + row.earnings, 0);
+
+      res.json({
+        projectId: project.id,
+        projectName: project.name,
+        startDate,
+        endDate,
+        groupBy,
+        data: groupedData,
+        totals: {
+          openMeters: totalOpenMeters,
+          closeMeters: totalCloseMeters,
+          totalMeters,
+          earnings: totalEarnings,
+        },
+      });
+    } catch (error: any) {
+      console.error("Error generating worker activity report:", error);
+      res.status(500).json({ message: error.message || "Failed to generate worker activity report" });
+    }
+  });
+
   // ============= Pay Rate Routes =============
   app.get("/api/projects/:projectId/pay-rates", isAuthenticated, async (req, res) => {
     try {
