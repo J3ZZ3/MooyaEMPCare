@@ -39,7 +39,7 @@ The backend uses Express.js with Node.js, providing a RESTful API. Key features 
 - **User Management**: Administrators can manage user roles with Zod schema validation.
 - **Authentication**: OpenID Connect (OIDC) integration with Replit Auth (Google OAuth), enforcing email domain restrictions and assigning roles based on domain.
 - **Session Management**: PostgreSQL-backed persistent sessions using connect-pg-simple.
-- **Authorization**: Role-based access control (RBAC) with roles like super_admin, admin, project_manager, supervisor, and project_admin. Labourers are data entities, not system users.
+- **Authorization**: Role-based access control (RBAC) with roles like super_admin, admin, project_manager, supervisor, project_admin, and labourer. Labourers can optionally be linked to user accounts to access their personal dashboard.
 
 ### Data Architecture
 

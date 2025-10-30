@@ -28,7 +28,7 @@ const roles = [
     color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
     description: "Full operational access to manage the system",
     permissions: [
-      "Manage all users and assign roles",
+      "Manage users and assign roles (except Super Admin)",
       "Create, edit, and delete projects",
       "Assign project managers and supervisors",
       "Manage employee types and pay rates",
@@ -37,15 +37,19 @@ const roles = [
       "Review and approve correction requests",
       "Access all reports and data"
     ],
-    notes: "Default role for @xnext.co.za emails. Nearly identical to super admin."
+    restrictions: [
+      "Cannot assign Super Admin role to users"
+    ],
+    notes: "Default role for @xnext.co.za emails. Has full access except for Super Admin role assignment."
   },
   {
     name: "Project Manager",
     value: "project_manager",
     icon: Briefcase,
     color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-    description: "Manages projects with limited editing permissions",
+    description: "Manages projects with controlled editing permissions",
     permissions: [
+      "Create new projects",
       "View all projects they manage",
       "Update project status only (cannot edit other fields)",
       "Assign supervisors to projects",
@@ -59,8 +63,7 @@ const roles = [
       "Review and approve correction requests"
     ],
     restrictions: [
-      "Cannot create new projects",
-      "Cannot edit project details (name, location, etc.)",
+      "Cannot edit project details after creation (name, location, budget)",
       "Cannot assign project managers"
     ],
     notes: "Focused on operational oversight with controlled permissions. Note: Daily work logging UI may not be visible in navigation but the capability exists."

@@ -18,6 +18,7 @@ import WorkLogPage from "@/pages/work-log";
 import PaymentsPage from "@/pages/payments";
 import AuditPage from "@/pages/audit";
 import RolesPage from "@/pages/roles";
+import LabourerDashboard from "@/pages/labourer-dashboard";
 import NotFound from "@/pages/not-found";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -81,8 +82,8 @@ function AuthenticatedApp({ user }: { user: User }) {
           <main className="flex-1 overflow-auto p-6">
             <div className="max-w-7xl mx-auto">
               <Switch>
-                <Route path="/" component={() => <Dashboard user={user} />} />
-                <Route path="/dashboard" component={() => <Dashboard user={user} />} />
+                <Route path="/" component={() => user.role === "labourer" ? <LabourerDashboard user={user} /> : <Dashboard user={user} />} />
+                <Route path="/dashboard" component={() => user.role === "labourer" ? <LabourerDashboard user={user} /> : <Dashboard user={user} />} />
                 <Route path="/users" component={() => <UsersPage user={user} />} />
                 <Route path="/employee-types" component={() => <EmployeeTypesPage user={user} />} />
                 <Route path="/projects/:id" component={() => <ProjectDetails user={user} />} />

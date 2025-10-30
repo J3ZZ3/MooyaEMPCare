@@ -90,7 +90,7 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
   };
 
   // Separate permissions for different operations
-  const canCreate = user.role === "super_admin" || user.role === "admin";
+  const canCreate = user.role === "super_admin" || user.role === "admin" || user.role === "project_manager";
   const canAssignTeam = user.role === "super_admin" || user.role === "admin";
   const canEditStatus = user.role === "super_admin" || user.role === "admin" || user.role === "project_manager";
 

@@ -1,0 +1,36 @@
+User Roles and Permissions
+ . Super Admin (kholofelo@mooya.co.za)
+ Responsibilities: - Manage all system users and assign roles - Create and configure
+ employee types - Oversee all projects and operations - Access all system features
+ without restriction
+Permissions: - Full CRUD access to all entities - User role assignment - System
+ configuration - Access to all projects and data
+ . Admin
+ Responsibilities: - Manage users within assigned scope - Configure employee types 
+Oversee multiple projects
+ Permissions: - User management (except Super Admin role assignment) - Employee
+ type management - Access to all projects - System configuration
+ . Project Manager
+ Responsibilities: - Create and manage projects - Assign supervisors to projects 
+Configure pay rates for employee types - Review and approve payment requests 
+Approve corrections submitted by Project Administrators
+ Permissions: - Create projects - Assign supervisors - Set and modify pay rates - View all
+ project data - Approve/reject payment requests - Approve/reject correction requests 
+Generate payment files
+ . Supervisor
+ Responsibilities: - Add local labourers to assigned projects - Record daily work output
+ (trenching meters) - Submit payment requests to Project Managers - Monitor worker
+ performance
+ Permissions: - Add/edit labourers in assigned projects - Record daily work logs - View
+ payment status for assigned project - Submit payment requests - View worker profiles
+ and history
+ . Project Administrator
+ Responsibilities: - Identify and correct data entry errors - Maintain data quality 
+Submit corrections for approval
+ Permissions: - View all project data - Submit correction requests (requires PM
+ approval) - View audit trail - Cannot directly modify payment data
+. Local Labourer (User)
+ Responsibilities: - View personal work records - Track payment status - Receive daily
+ work notifications
+ Permissions: - View personal dashboard - View own work history - View payment
+ status - Receive notification

@@ -15,7 +15,12 @@ import {
   insertPaymentPeriodSchema,
   insertCorrectionRequestSchema,
   updateUserRoleSchema,
+  paymentPeriodEntries,
+  paymentPeriods,
+  projects,
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, desc } from "drizzle-orm";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -66,6 +71,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/users/:id', isAuthenticated, requireRole("super_admin", "admin"), async (req: any, res) => {
     try {
       const { role } = updateUserRoleSchema.parse(req.body);
+      
+      // Admins cannot assign super_admin role - only super_admin can do that
+      if (req.dbUser.role === "admin" && role === "super_admin") {
+        return res.status(403).json({ 
+          message: "Only Super Admins can assign the Super Admin role" 
+        });
+      }
+      
       const user = await storage.updateUserRole(req.params.id, role);
       res.json(user);
     } catch (error: any) {
@@ -283,7 +296,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/projects", isAuthenticated, requireRole("super_admin", "admin"), async (req: any, res) => {
+  app.post("/api/projects", isAuthenticated, requireRole("super_admin", "admin", "project_manager"), async (req: any, res) => {
     try {
       // Use dbUser.id (attached by requireRole middleware)
       const userId = req.dbUser.id;
@@ -465,6 +478,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error assigning labourers:", error);
       res.status(400).json({ message: error.message || "Failed to assign labourers" });
+    }
+  });
+
+  // ============= Labourer Portal Routes (for labourer role users) =============
+  // Get labourer's own profile based on their userId
+  app.get("/api/my-labourer-profile", isAuthenticated, requireRole("labourer"), async (req: any, res) => {
+    try {
+      const userId = req.dbUser.id;
+      const labourer = await storage.getLabourerByUserId(userId);
+      
+      if (!labourer) {
+        return res.status(404).json({ message: "Labourer profile not found" });
+      }
+      
+      res.json(labourer);
+    } catch (error) {
+      console.error("Error fetching labourer profile:", error);
+      res.status(500).json({ message: "Failed to fetch profile" });
+    }
+  });
+
+  // Get labourer's own work logs
+  app.get("/api/my-work-logs", isAuthenticated, requireRole("labourer"), async (req: any, res) => {
+    try {
+      const userId = req.dbUser.id;
+      const labourer = await storage.getLabourerByUserId(userId);
+      
+      if (!labourer) {
+        return res.status(404).json({ message: "Labourer profile not found" });
+      }
+      
+      const workLogs = await storage.getWorkLogsByLabourer(labourer.id);
+      res.json(workLogs);
+    } catch (error) {
+      console.error("Error fetching work logs:", error);
+      res.status(500).json({ message: "Failed to fetch work logs" });
+    }
+  });
+
+  // Get labourer's payment entries across all payment periods
+  app.get("/api/my-payments", isAuthenticated, requireRole("labourer"), async (req: any, res) => {
+    try {
+      const userId = req.dbUser.id;
+      const labourer = await storage.getLabourerByUserId(userId);
+      
+      if (!labourer) {
+        return res.status(404).json({ message: "Labourer profile not found" });
+      }
+      
+      // Get all payment period entries for this labourer
+      const entries = await db
+        .select({
+          entry: paymentPeriodEntries,
+          period: paymentPeriods,
+          project: projects,
+        })
+        .from(paymentPeriodEntries)
+        .innerJoin(paymentPeriods, eq(paymentPeriodEntries.periodId, paymentPeriods.id))
+        .innerJoin(projects, eq(paymentPeriods.projectId, projects.id))
+        .where(eq(paymentPeriodEntries.labourerId, labourer.id))
+        .orderBy(desc(paymentPeriods.endDate));
+      
+      res.json(entries);
+    } catch (error) {
+      console.error("Error fetching payment entries:", error);
+      res.status(500).json({ message: "Failed to fetch payment information" });
     }
   });
 
