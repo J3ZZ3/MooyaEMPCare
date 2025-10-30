@@ -237,7 +237,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         // Labourers can only see their assigned project
         const labourer = await storage.getLabourerByUserId(user.id);
-        if (labourer) {
+        if (labourer && labourer.projectId) {
           const project = await storage.getProject(labourer.projectId);
           projects = project ? [project] : [];
         }
@@ -795,23 +795,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
             );
             
             // Aggregate work logs by labourer
-            const labourerEarnings = new Map<string, number>();
+            const labourerData = new Map<string, {
+              openMeters: number;
+              closeMeters: number;
+              totalEarnings: number;
+              daysWorked: Set<string>;
+            }>();
+            
             for (const log of workLogs) {
-              const current = labourerEarnings.get(log.labourerId) || 0;
-              labourerEarnings.set(log.labourerId, current + Number(log.totalEarnings));
+              const current = labourerData.get(log.labourerId) || {
+                openMeters: 0,
+                closeMeters: 0,
+                totalEarnings: 0,
+                daysWorked: new Set<string>(),
+              };
+              
+              current.openMeters += Number(log.openTrenchingMeters || 0);
+              current.closeMeters += Number(log.closeTrenchingMeters || 0);
+              current.totalEarnings += Number(log.totalEarnings || 0);
+              current.daysWorked.add(log.workDate);
+              
+              labourerData.set(log.labourerId, current);
             }
             
             // Create payment period entries for each labourer
             let totalAmount = 0;
-            for (const [labourerId, totalEarnings] of Array.from(labourerEarnings.entries())) {
+            for (const [labourerId, data] of Array.from(labourerData.entries())) {
+              const totalMeters = data.openMeters + data.closeMeters;
               await storage.createPaymentPeriodEntry({
                 periodId: req.params.id,
                 labourerId,
-                daysWorked: 0, // Can be calculated later if needed
-                totalMeters: "0", // Can be calculated later if needed
-                totalEarnings: totalEarnings.toString(),
+                daysWorked: data.daysWorked.size,
+                openMeters: data.openMeters.toString(),
+                closeMeters: data.closeMeters.toString(),
+                totalMeters: totalMeters.toString(),
+                totalEarnings: data.totalEarnings.toString(),
               });
-              totalAmount += totalEarnings;
+              totalAmount += data.totalEarnings;
             }
             
             // Update the payment period's totalAmount field

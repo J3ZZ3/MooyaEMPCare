@@ -333,6 +333,8 @@ export const paymentPeriodEntries = pgTable("payment_period_entries", {
   periodId: varchar("period_id").notNull().references(() => paymentPeriods.id, { onDelete: 'cascade' }),
   labourerId: varchar("labourer_id").notNull().references(() => labourers.id, { onDelete: 'cascade' }),
   daysWorked: integer("days_worked").notNull().default(0),
+  openMeters: decimal("open_meters", { precision: 10, scale: 2 }).notNull().default("0"),
+  closeMeters: decimal("close_meters", { precision: 10, scale: 2 }).notNull().default("0"),
   totalMeters: decimal("total_meters", { precision: 10, scale: 2 }).notNull().default("0"),
   totalEarnings: decimal("total_earnings", { precision: 10, scale: 2 }).notNull().default("0"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -446,7 +448,10 @@ export const insertLabourerSchema = createInsertSchema(labourers).omit({
   contactNumber: z.string().regex(/^(\+27|0)[0-9]{9}$/, "Must be valid SA phone number"),
   email: z.string().email().optional().or(z.literal("")),
   // Transform empty string to null for optional project assignment
-  projectId: z.string().optional().transform(val => val === "" || !val ? null : val),
+  projectId: z.preprocess(
+    val => val === "" || val === undefined || val === null ? null : val,
+    z.string().nullable()
+  ),
 });
 
 export const insertWorkLogSchema = createInsertSchema(workLogs).omit({

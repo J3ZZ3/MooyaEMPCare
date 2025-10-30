@@ -74,12 +74,13 @@ export default function LabourersPage() {
     queryKey: ["/api/employee-types"],
   });
 
-  // Fetch labourers for all projects
+  // Fetch labourers for all projects AND unassigned labourers
   const [allLabourers, setAllLabourers] = useState<Labourer[]>([]);
   const projectsData = projects || [];
   
   useEffect(() => {
     const fetchAllLabourers = async () => {
+      // Fetch labourers from all projects
       const labourersByProject = await Promise.all(
         projectsData.map(async (project) => {
           try {
@@ -93,12 +94,30 @@ export default function LabourersPage() {
           }
         })
       );
-      setAllLabourers(labourersByProject.flat());
+      
+      // Fetch unassigned labourers (not assigned to any project)
+      let unassignedLabourers: Labourer[] = [];
+      try {
+        const response = await fetch(`/api/labourers/available`);
+        if (response.ok) {
+          unassignedLabourers = await response.json();
+        }
+      } catch {
+        // Silent fail - continue with just project-assigned labourers
+      }
+      
+      // Combine all labourers (from projects + unassigned)
+      const allCombined = [...labourersByProject.flat(), ...unassignedLabourers];
+      
+      // Remove duplicates (in case a labourer appears in both lists)
+      const uniqueLabourers = Array.from(
+        new Map(allCombined.map(l => [l.id, l])).values()
+      );
+      
+      setAllLabourers(uniqueLabourers);
     };
 
-    if (projectsData.length > 0) {
-      fetchAllLabourers();
-    }
+    fetchAllLabourers();
   }, [projectsData.length]);
 
   const form = useForm<LabourerFormData>({
@@ -165,26 +184,43 @@ export default function LabourersPage() {
       if (projectId) {
         queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/labourers`] });
       }
-      // Refresh all labourers
-      if (projectsData.length > 0) {
-        const fetchAllLabourers = async () => {
-          const labourersByProject = await Promise.all(
-            projectsData.map(async (project) => {
-              try {
-                const response = await fetch(`/api/projects/${project.id}/labourers`);
-                if (response.ok) {
-                  return await response.json();
-                }
-                return [];
-              } catch {
-                return [];
+      // Refresh all labourers (both assigned and unassigned)
+      const fetchAllLabourers = async () => {
+        // Fetch labourers from all projects
+        const labourersByProject = await Promise.all(
+          projectsData.map(async (project) => {
+            try {
+              const response = await fetch(`/api/projects/${project.id}/labourers`);
+              if (response.ok) {
+                return await response.json();
               }
-            })
-          );
-          setAllLabourers(labourersByProject.flat());
-        };
-        fetchAllLabourers();
-      }
+              return [];
+            } catch {
+              return [];
+            }
+          })
+        );
+        
+        // Fetch unassigned labourers
+        let unassignedLabourers: Labourer[] = [];
+        try {
+          const response = await fetch(`/api/labourers/available`);
+          if (response.ok) {
+            unassignedLabourers = await response.json();
+          }
+        } catch {
+          // Silent fail
+        }
+        
+        // Combine and deduplicate
+        const allCombined = [...labourersByProject.flat(), ...unassignedLabourers];
+        const uniqueLabourers = Array.from(
+          new Map(allCombined.map(l => [l.id, l])).values()
+        );
+        
+        setAllLabourers(uniqueLabourers);
+      };
+      fetchAllLabourers();
     },
     onError: (error: Error) => {
       toast({
@@ -241,7 +277,7 @@ export default function LabourersPage() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Project *</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value || undefined}>
                             <FormControl>
                               <SelectTrigger data-testid="select-project">
                                 <SelectValue placeholder="Select project" />

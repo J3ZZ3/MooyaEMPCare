@@ -80,8 +80,8 @@ export default function ProjectsPage({ user }: ProjectsPageProps) {
   const [selectedManagerId, setSelectedManagerId] = useState("");
   const [selectedSupervisorId, setSelectedSupervisorId] = useState("");
 
-  const canManage = user.role === "super_admin" || user.role === "admin";
-  const canAssignTeam = canManage || user.role === "project_manager";
+  const canManage = user.role === "super_admin" || user.role === "admin" || user.role === "project_manager";
+  const canAssignTeam = canManage;
 
   const addForm = useForm<ProjectFormData>({
     resolver: zodResolver(insertProjectSchema),

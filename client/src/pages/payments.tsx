@@ -483,7 +483,9 @@ export default function PaymentsPage({ user }: PaymentsPageProps) {
                       <TableRow>
                         <TableHead>Labourer</TableHead>
                         <TableHead>Days Worked</TableHead>
-                        <TableHead>Total Meters</TableHead>
+                        <TableHead className="text-right">Open (m)</TableHead>
+                        <TableHead className="text-right">Close (m)</TableHead>
+                        <TableHead className="text-right">Total (m)</TableHead>
                         <TableHead className="text-right">Earnings</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -492,7 +494,9 @@ export default function PaymentsPage({ user }: PaymentsPageProps) {
                         <TableRow key={entry.id}>
                           <TableCell>{entry.labourerId}</TableCell>
                           <TableCell>{entry.daysWorked}</TableCell>
-                          <TableCell>{parseFloat(entry.totalMeters).toFixed(2)}m</TableCell>
+                          <TableCell className="text-right font-mono">{parseFloat(entry.openMeters || "0").toFixed(2)}</TableCell>
+                          <TableCell className="text-right font-mono">{parseFloat(entry.closeMeters || "0").toFixed(2)}</TableCell>
+                          <TableCell className="text-right font-mono">{parseFloat(entry.totalMeters).toFixed(2)}</TableCell>
                           <TableCell className="text-right font-mono">
                             R {parseFloat(entry.totalEarnings).toFixed(2)}
                           </TableCell>
