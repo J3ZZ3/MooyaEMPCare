@@ -114,7 +114,6 @@ export default function Reports({ user }: ReportsProps) {
   const [matrixProjectId, setMatrixProjectId] = useState<string>("");
   const [matrixStartDate, setMatrixStartDate] = useState<string>("");
   const [matrixEndDate, setMatrixEndDate] = useState<string>("");
-  const [matrixMetricType, setMatrixMetricType] = useState<string>("total");
   const [matrixReport, setMatrixReport] = useState<WorkerMatrixReport | null>(null);
   const [isGeneratingMatrix, setIsGeneratingMatrix] = useState(false);
 
@@ -290,7 +289,6 @@ export default function Reports({ user }: ReportsProps) {
         projectId: matrixProjectId,
         startDate: matrixStartDate,
         endDate: matrixEndDate,
-        metricType: matrixMetricType,
       });
       
       const response = await fetch(`/api/reports/worker-activity-matrix?${params.toString()}`);
@@ -419,7 +417,7 @@ export default function Reports({ user }: ReportsProps) {
               <CardDescription>📊 View all workers across all dates in a single grid - workers as rows, dates as columns</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="matrix-project">Project *</Label>
                   <Select
@@ -464,19 +462,6 @@ export default function Reports({ user }: ReportsProps) {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="metric-type">Show Metric</Label>
-                  <Select value={matrixMetricType} onValueChange={setMatrixMetricType}>
-                    <SelectTrigger id="metric-type" data-testid="select-metric-type">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="opens">Open Trenches Only</SelectItem>
-                      <SelectItem value="closes">Close Trenches Only</SelectItem>
-                      <SelectItem value="total">Total Trenches</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
 
               <Button
@@ -502,11 +487,7 @@ export default function Reports({ user }: ReportsProps) {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>
-                      {matrixMetricType === 'opens' && 'Open Trenches Matrix'}
-                      {matrixMetricType === 'closes' && 'Close Trenches Matrix'}
-                      {matrixMetricType === 'total' && 'Total Trenches Matrix'}
-                    </CardTitle>
+                    <CardTitle>Worker Activity Matrix</CardTitle>
                     <CardDescription>
                       Period: {new Date(matrixReport.startDate).toLocaleDateString()} to {new Date(matrixReport.endDate).toLocaleDateString()} • {matrixReport.rows.length} workers × {matrixReport.dates.length} days
                     </CardDescription>
@@ -517,38 +498,52 @@ export default function Reports({ user }: ReportsProps) {
                 <div className="rounded-md border overflow-x-auto">
                   <Table>
                     <TableHeader>
+                      {/* First header row: Dates */}
                       <TableRow className="bg-yellow-100 dark:bg-yellow-900/30">
-                        <TableHead className="sticky left-0 bg-yellow-100 dark:bg-yellow-900/30 z-10 min-w-[200px]">Worker Name</TableHead>
+                        <TableHead rowSpan={2} className="sticky left-0 bg-yellow-100 dark:bg-yellow-900/30 z-20 min-w-[200px] border-r-2 border-yellow-200 dark:border-yellow-800">
+                          Worker Name
+                        </TableHead>
                         {matrixReport.dates.map((date) => (
-                          <TableHead key={date} className="text-center min-w-[80px]">
+                          <TableHead key={date} colSpan={2} className="text-center border-r border-yellow-200 dark:border-yellow-800">
                             {new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                           </TableHead>
                         ))}
-                        <TableHead className="sticky right-0 bg-yellow-100 dark:bg-yellow-900/30 z-10 text-center min-w-[100px] font-bold">
+                        <TableHead rowSpan={2} className="sticky right-0 bg-yellow-100 dark:bg-yellow-900/30 z-20 text-center min-w-[100px] font-bold border-l-2 border-yellow-200 dark:border-yellow-800">
                           Total
                         </TableHead>
+                      </TableRow>
+                      {/* Second header row: Open/Close */}
+                      <TableRow className="bg-yellow-100 dark:bg-yellow-900/30">
+                        {matrixReport.dates.map((date, idx) => (
+                          <>
+                            <TableHead key={`${date}-open`} className="text-center text-xs min-w-[60px]">
+                              Open
+                            </TableHead>
+                            <TableHead key={`${date}-close`} className="text-center text-xs min-w-[60px] border-r border-yellow-200 dark:border-yellow-800">
+                              Close
+                            </TableHead>
+                          </>
+                        ))}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {matrixReport.rows.map((row) => (
                         <TableRow key={row.labourerId} data-testid={`matrix-row-${row.labourerId}`}>
-                          <TableCell className="sticky left-0 bg-background z-10 font-medium">
+                          <TableCell className="sticky left-0 bg-background z-10 font-medium border-r-2">
                             {row.labourerName}
                           </TableCell>
-                          {row.dailyValues.map((dayValue, idx) => {
-                            const value = matrixMetricType === 'opens' ? dayValue.opens :
-                                        matrixMetricType === 'closes' ? dayValue.closes :
-                                        dayValue.total;
-                            return (
-                              <TableCell key={idx} className="text-center font-mono text-sm">
-                                {value > 0 ? value.toFixed(0) : '-'}
+                          {row.dailyValues.map((dayValue, idx) => (
+                            <>
+                              <TableCell key={`${idx}-open`} className="text-center font-mono text-sm">
+                                {dayValue.opens > 0 ? dayValue.opens.toFixed(0) : '0'}
                               </TableCell>
-                            );
-                          })}
-                          <TableCell className="sticky right-0 bg-muted/50 z-10 text-center font-bold">
-                            {matrixMetricType === 'opens' && row.rowTotals.opens.toFixed(0)}
-                            {matrixMetricType === 'closes' && row.rowTotals.closes.toFixed(0)}
-                            {matrixMetricType === 'total' && row.rowTotals.total.toFixed(0)}
+                              <TableCell key={`${idx}-close`} className="text-center font-mono text-sm border-r">
+                                {dayValue.closes > 0 ? dayValue.closes.toFixed(0) : '0'}
+                              </TableCell>
+                            </>
+                          ))}
+                          <TableCell className="sticky right-0 bg-muted/50 z-10 text-center font-bold border-l-2">
+                            {row.rowTotals.total.toFixed(0)}
                           </TableCell>
                         </TableRow>
                       ))}
