@@ -23,11 +23,12 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ArrowLeft, UserPlus, MapPin, Calendar, DollarSign, TrendingUp, AlertTriangle } from "lucide-react";
+import { Loader2, ArrowLeft, UserPlus, MapPin, Calendar, DollarSign, TrendingUp, AlertTriangle, FileEdit } from "lucide-react";
 import { useState } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Project, User, Labourer, EmployeeType } from "@shared/schema";
 import { format } from "date-fns";
+import CorrectionRequestDialog from "@/components/CorrectionRequestDialog";
 
 interface ProjectDetailsProps {
   user: User;
@@ -39,6 +40,8 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
   const { toast } = useToast();
   const [addLabourerDialogOpen, setAddLabourerDialogOpen] = useState(false);
   const [selectedLabourerIds, setSelectedLabourerIds] = useState<string[]>([]);
+  const [correctionDialogOpen, setCorrectionDialogOpen] = useState(false);
+  const [selectedEntity, setSelectedEntity] = useState<{ type: "labourer" | "work_log"; id: string; data: any; displayName?: string } | null>(null);
 
   const { data: project, isLoading: projectLoading } = useQuery<Project>({
     queryKey: [`/api/projects/${projectId}`],
@@ -255,6 +258,9 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
           <TabsTrigger value="labourers" data-testid="tab-labourers">
             Labourers ({labourers.length})
           </TabsTrigger>
+          <TabsTrigger value="work-logs" data-testid="tab-work-logs">
+            Work Log History ({workLogs.length})
+          </TabsTrigger>
           <TabsTrigger value="progress" data-testid="tab-progress">
             Progress Summary
           </TabsTrigger>
@@ -292,6 +298,7 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
                       <TableHead>Employee Type</TableHead>
                       <TableHead>Contact</TableHead>
                       <TableHead>Bank Details</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -314,6 +321,99 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
                                 {labourer.accountNumber}
                               </div>
                             </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedEntity({
+                                  type: "labourer",
+                                  id: labourer.id,
+                                  data: labourer,
+                                  displayName: `${labourer.firstName} ${labourer.surname}`
+                                });
+                                setCorrectionDialogOpen(true);
+                              }}
+                              data-testid={`button-request-correction-${labourer.id}`}
+                            >
+                              <FileEdit className="h-4 w-4 mr-2" />
+                              Request Correction
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="work-logs" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Work Log History</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {workLogs.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">
+                  No work logs recorded for this project yet
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Labourer</TableHead>
+                      <TableHead className="text-right">Open Trenching (m)</TableHead>
+                      <TableHead className="text-right">Close Trenching (m)</TableHead>
+                      <TableHead className="text-right">Total Earnings</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {workLogs.map((log: any) => {
+                      const labourer = labourers.find(l => l.id === log.labourerId);
+                      return (
+                        <TableRow key={log.id} data-testid={`row-work-log-${log.id}`}>
+                          <TableCell>
+                            {format(new Date(log.workDate), "MMM d, yyyy")}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {labourer ? `${labourer.firstName} ${labourer.surname}` : "Unknown"}
+                          </TableCell>
+                          <TableCell className="text-right font-mono">
+                            {Number(log.openTrenchingMeters).toFixed(1)}
+                          </TableCell>
+                          <TableCell className="text-right font-mono">
+                            {Number(log.closeTrenchingMeters).toFixed(1)}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-green-600 dark:text-green-400">
+                            R{Number(log.totalEarnings).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedEntity({
+                                  type: "work_log",
+                                  id: log.id,
+                                  data: {
+                                    ...log,
+                                    workDate: format(new Date(log.workDate), "yyyy-MM-dd")
+                                  },
+                                  displayName: `${labourer ? `${labourer.firstName} ${labourer.surname}` : "Unknown"} - ${format(new Date(log.workDate), "MMM d, yyyy")}`
+                                });
+                                setCorrectionDialogOpen(true);
+                              }}
+                              data-testid={`button-request-correction-work-log-${log.id}`}
+                            >
+                              <FileEdit className="h-4 w-4 mr-2" />
+                              Request Correction
+                            </Button>
                           </TableCell>
                         </TableRow>
                       );
@@ -537,6 +637,18 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {selectedEntity && (
+        <CorrectionRequestDialog
+          open={correctionDialogOpen}
+          onOpenChange={setCorrectionDialogOpen}
+          entityType={selectedEntity.type}
+          entityId={selectedEntity.id}
+          entityData={selectedEntity.data}
+          user={user}
+          entityDisplayName={selectedEntity.displayName}
+        />
+      )}
     </div>
   );
 }
