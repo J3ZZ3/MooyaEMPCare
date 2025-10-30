@@ -720,6 +720,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const labourers = await storage.getLabourers(projectId as string);
       const labourerMap = new Map(labourers.map((l: any) => [l.id, l]));
 
+      // Get employee types with pay rates
+      const employeeTypes = await storage.getEmployeeTypes();
+      const employeeTypeMap = new Map(employeeTypes.map((et: any) => [et.id, et]));
+
       // Generate all dates in the range
       const start = new Date(startDate as string);
       const end = new Date(endDate as string);
@@ -772,8 +776,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const rowTotals = {
           opens: dailyValues.reduce((sum, day) => sum + day.opens, 0),
           closes: dailyValues.reduce((sum, day) => sum + day.closes, 0),
-          total: dailyValues.reduce((sum, day) => sum + day.total, 0)
+          total: dailyValues.reduce((sum, day) => sum + day.total, 0),
+          totalAmount: 0
         };
+
+        // Calculate earnings based on employee type rates
+        if (labourer?.employeeTypeId) {
+          const employeeType = employeeTypeMap.get(labourer.employeeTypeId);
+          if (employeeType) {
+            const openRate = parseFloat(employeeType.openTrenchingRate || "0");
+            const closeRate = parseFloat(employeeType.closeTrenchingRate || "0");
+            rowTotals.totalAmount = (rowTotals.opens * openRate) + (rowTotals.closes * closeRate);
+          }
+        }
 
         return {
           labourerId,

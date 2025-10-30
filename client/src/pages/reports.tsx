@@ -79,6 +79,7 @@ interface WorkerMatrixRow {
     opens: number;
     closes: number;
     total: number;
+    totalAmount: number;
   };
 }
 
@@ -508,8 +509,14 @@ export default function Reports({ user }: ReportsProps) {
                             {new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                           </TableHead>
                         ))}
-                        <TableHead rowSpan={2} className="sticky right-0 bg-yellow-100 dark:bg-yellow-900/30 z-20 text-center min-w-[100px] font-bold border-l-2 border-yellow-200 dark:border-yellow-800">
-                          Total
+                        <TableHead rowSpan={2} className="sticky right-0 bg-yellow-100 dark:bg-yellow-900/30 z-20 text-center min-w-[90px] font-bold border-l-2 border-yellow-200 dark:border-yellow-800">
+                          Final Opens
+                        </TableHead>
+                        <TableHead rowSpan={2} className="bg-yellow-100 dark:bg-yellow-900/30 text-center min-w-[90px] font-bold">
+                          Final Closes
+                        </TableHead>
+                        <TableHead rowSpan={2} className="bg-yellow-100 dark:bg-yellow-900/30 text-center min-w-[120px] font-bold">
+                          Total Amount
                         </TableHead>
                       </TableRow>
                       {/* Second header row: Open/Close */}
@@ -542,8 +549,14 @@ export default function Reports({ user }: ReportsProps) {
                               </TableCell>
                             </>
                           ))}
-                          <TableCell className="sticky right-0 bg-muted/50 z-10 text-center font-bold border-l-2">
-                            {row.rowTotals.total.toFixed(0)}
+                          <TableCell className="sticky right-0 bg-muted/50 z-10 text-center font-bold border-l-2 font-mono">
+                            {row.rowTotals.opens.toFixed(0)}
+                          </TableCell>
+                          <TableCell className="bg-muted/50 text-center font-bold font-mono">
+                            {row.rowTotals.closes.toFixed(0)}
+                          </TableCell>
+                          <TableCell className="bg-muted/50 text-center font-bold font-mono">
+                            R{row.rowTotals.totalAmount.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </TableCell>
                         </TableRow>
                       ))}
