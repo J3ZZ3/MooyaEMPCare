@@ -22,8 +22,17 @@ The application uses a modern React-based single-page application (SPA) architec
 
 The backend uses Express.js with Node.js, providing a RESTful API. Key features include:
 - **Dual Authentication System**: Passport.js with both OIDC strategy (staff) and Local strategy (labourers) with session regeneration for security
+- **Automatic Labourer Account Creation**: When a labourer is onboarded, the system automatically creates login credentials:
+  - Password hash generated from RSA ID/passport number using bcrypt (10 salt rounds)
+  - Stored in labourers.passwordHash field for immediate login capability
+  - Login credentials: contactNumber OR email + RSA ID/passport number
+  - UI provides clear informational notice explaining the auto-creation process
+  - Email field labeled "Email (for login)" to guide data entry
 - **Password Security**: RSA ID/passport numbers are hashed using bcrypt (10 salt rounds) and stored in labourers.passwordHash field
 - **Session Isolation**: Separate middleware (isAuthenticated for staff, isLabourerAuthenticated for labourers) prevents cross-mode session interference
+  - Session augmentation with isLabourerSession flag and labourerId for type safety
+  - Explicit session.save() ensures persistence before response
+  - TypeScript module augmentation for express-session.SessionData interface
 - **Labourer Assignment**: Allows batch assignment of labourers to projects, showing availability.
 - **Streamlined Project Creation**: Supervisors can be assigned during project creation in a single step. The Add Project dialog includes an optional supervisor selector, and the POST /api/projects endpoint accepts supervisorId to automatically create the assignment. Team Management dialog displays all assigned managers and supervisors for transparency.
 - **Payment Period Management**: Comprehensive workflow (create → submit → approve/reject) for payment periods across projects, with role-based permissions. Payment period entries track open/close meters separately with detailed breakdown (openMeters, closeMeters, totalMeters columns).
