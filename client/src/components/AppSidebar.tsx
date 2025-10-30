@@ -18,6 +18,7 @@ import {
   FileText,
   Settings,
   LogOut,
+  Shield,
 } from "lucide-react";
 import RoleBadge from "./RoleBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -50,6 +51,7 @@ const menuItems = {
     { title: "Payments", icon: DollarSign, path: "/payments" },
     { title: "Users", icon: Users, path: "/users" },
     { title: "Employee Types", icon: FileText, path: "/employee-types" },
+    { title: "Roles & Permissions", icon: Shield, path: "/roles" },
     { title: "Settings", icon: Settings, path: "/settings" },
   ],
   admin: [
@@ -62,6 +64,7 @@ const menuItems = {
     { title: "Daily Work", icon: FileText, path: "/work-log" },
     { title: "Users", icon: Users, path: "/users" },
     { title: "Employee Types", icon: FileText, path: "/employee-types" },
+    { title: "Roles & Permissions", icon: Shield, path: "/roles" },
   ],
   project_manager: [
     { title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
@@ -70,6 +73,7 @@ const menuItems = {
     { title: "Labourers", icon: Users, path: "/labourers" },
     { title: "Reports", icon: FileText, path: "/reports" },
     { title: "Payments", icon: DollarSign, path: "/payments" },
+    { title: "Roles & Permissions", icon: Shield, path: "/roles" },
   ],
   supervisor: [
     { title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
@@ -77,6 +81,7 @@ const menuItems = {
     { title: "Daily Work", icon: FileText, path: "/work-log" },
     { title: "Reports", icon: FileText, path: "/reports" },
     { title: "Payments", icon: DollarSign, path: "/payments" },
+    { title: "Roles & Permissions", icon: Shield, path: "/roles" },
   ],
   project_admin: [
     { title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
@@ -84,10 +89,12 @@ const menuItems = {
     { title: "Labourers", icon: Users, path: "/labourers" },
     { title: "Reports", icon: FileText, path: "/reports" },
     { title: "Payments", icon: DollarSign, path: "/payments" },
+    { title: "Roles & Permissions", icon: Shield, path: "/roles" },
   ],
   labourer: [
     { title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
     { title: "Work History", icon: FileText, path: "/work-history" },
+    { title: "Roles & Permissions", icon: Shield, path: "/roles" },
   ],
 };
 

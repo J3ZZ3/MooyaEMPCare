@@ -17,6 +17,7 @@ import Reports from "@/pages/reports";
 import WorkLogPage from "@/pages/work-log";
 import PaymentsPage from "@/pages/payments";
 import AuditPage from "@/pages/audit";
+import RolesPage from "@/pages/roles";
 import NotFound from "@/pages/not-found";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -92,6 +93,7 @@ function AuthenticatedApp({ user }: { user: User }) {
                 <Route path="/work-log" component={() => <WorkLogPage user={user} />} />
                 <Route path="/payments" component={() => <PaymentsPage user={user} />} />
                 <Route path="/audit" component={() => <AuditPage user={user} />} />
+                <Route path="/roles" component={RolesPage} />
                 <Route component={NotFound} />
               </Switch>
             </div>
