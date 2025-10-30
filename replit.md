@@ -32,7 +32,10 @@ The backend uses Express.js with Node.js, providing a RESTful API. Key features 
   - Timezone-safe: Uses regex extraction for string dates and local component extraction for Date objects to prevent UTC drift
   - Historical edits blocked: Supervisors must submit correction requests for past entries
 - **Audit Trail & Correction Requests**: Tracks all data corrections through a formal review and approval process, providing transparency.
-- **Payroll Reports**: Generates payroll reports with worker earnings, open/close meter breakdown, grand totals, and CSV export functionality for all roles.
+- **Worker Activity Reporting**: Comprehensive reporting system with three report types:
+  - **Matrix View**: Pivot table with workers as rows, dates as columns, showing both Open and Close trenches for each day. Includes three final columns: Final Opens (total opens), Final Closes (total closes), and Total Amount (earnings in Rand based on employee type rates).
+  - **Detailed View**: Filterable activity breakdown by project, worker, date range, and grouping (daily/weekly/monthly) with CSV export.
+  - **Payroll Summary**: Aggregated worker earnings with open/close meter breakdown and grand totals.
 - **User Management**: Administrators can manage user roles with Zod schema validation.
 - **Authentication**: OpenID Connect (OIDC) integration with Replit Auth (Google OAuth), enforcing email domain restrictions and assigning roles based on domain.
 - **Session Management**: PostgreSQL-backed persistent sessions using connect-pg-simple.
