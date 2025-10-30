@@ -208,7 +208,7 @@ export const accountTypeEnum = pgEnum("account_type", ["cheque", "savings"]);
 export const labourers = pgTable("labourers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id), // Optional: for labourers who have app access
-  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  projectId: varchar("project_id").references(() => projects.id, { onDelete: 'cascade' }), // Optional: labourers can be unassigned
   employeeTypeId: varchar("employee_type_id").notNull().references(() => employeeTypes.id),
   firstName: varchar("first_name", { length: 100 }).notNull(),
   surname: varchar("surname", { length: 100 }).notNull(),
@@ -441,10 +441,12 @@ export const insertLabourerSchema = createInsertSchema(labourers).omit({
   updatedAt: true,
 }).extend({
   // South African ID validation: 13 digits
-  idNumber: z.string().regex(/^[0-9]{13}$|^[A-Z0-9]{6,9}$/, "Must be valid SA ID (13 digits) or Passport (6-9 characters)"),
+  idNumber: z.string().regex(/^[0-9]{13}$|^[A-Z0-9]{6-9}$/, "Must be valid SA ID (13 digits) or Passport (6-9 characters)"),
   // South African phone number validation
   contactNumber: z.string().regex(/^(\+27|0)[0-9]{9}$/, "Must be valid SA phone number"),
   email: z.string().email().optional().or(z.literal("")),
+  // Transform empty string to null for optional project assignment
+  projectId: z.string().optional().transform(val => val === "" || !val ? null : val),
 });
 
 export const insertWorkLogSchema = createInsertSchema(workLogs).omit({
