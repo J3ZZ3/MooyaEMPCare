@@ -256,13 +256,20 @@ export async function setupAuth(app: Express) {
           req.session.isLabourerSession = true;
           req.session.labourerId = user.labourerId;
           
-          return res.json({ 
-            success: true, 
-            labourer: {
-              id: user.labourerId,
-              firstName: user.firstName,
-              surname: user.surname,
+          // Explicitly save session before sending response
+          req.session.save((err) => {
+            if (err) {
+              return next(err);
             }
+            
+            return res.json({ 
+              success: true, 
+              labourer: {
+                id: user.labourerId,
+                firstName: user.firstName,
+                surname: user.surname,
+              }
+            });
           });
         });
       });
