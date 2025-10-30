@@ -19,7 +19,7 @@ interface LabourerDashboardProps {
 }
 
 export default function LabourerDashboard({ user }: LabourerDashboardProps) {
-  const { data: profile, isLoading: profileLoading } = useQuery<Labourer>({
+  const { data: profile, isLoading: profileLoading, error: profileError } = useQuery<Labourer>({
     queryKey: ["/api/my-labourer-profile"],
   });
 
@@ -39,6 +39,23 @@ export default function LabourerDashboard({ user }: LabourerDashboardProps) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <p className="ml-2 text-sm text-muted-foreground">Loading profile...</p>
+      </div>
+    );
+  }
+
+  if (profileError) {
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardContent className="p-6 space-y-4">
+            <p className="text-destructive font-medium">Error loading profile</p>
+            <p className="text-sm text-muted-foreground">{(profileError as Error).message}</p>
+            <p className="text-sm text-muted-foreground">
+              Please try logging in again or contact your supervisor for assistance.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
