@@ -18,14 +18,20 @@ The application uses a modern React-based single-page application (SPA) architec
 
 The backend uses Express.js with Node.js, providing a RESTful API. Key features include:
 - **Labourer Assignment**: Allows batch assignment of labourers to projects, showing availability.
-- **Payment Period Management**: Comprehensive workflow (create → submit → approve/reject) for payment periods across projects, with role-based permissions.
+- **Payment Period Management**: Comprehensive workflow (create → submit → approve/reject) for payment periods across projects, with role-based permissions. Payment period entries track open/close meters separately with detailed breakdown (openMeters, closeMeters, totalMeters columns).
+- **Project Manager Permissions** (PRD PM-001): Implements defense-in-depth security for PM role restrictions:
+  - Frontend: Separate permissions (canCreate, canAssignTeam, canEditStatus) control UI visibility
+  - Form submission: PMs send only status field, admins send all fields
+  - Backend validation: Server validates role and rejects non-status fields from PMs with 403 error
+  - UI behavior: PM edit dialog shows only status selector with "Update project status" description
+  - Allows PMs to close projects early without granting unauthorized admin privileges
 - **Work Log Edit Restrictions** (PRD WORK-001): Enforces today-only edit policy for work logs with dual-layer validation:
   - Client-side: Disabled inputs, warning banner, and save guard on historical dates
   - Server-side: POST and PUT endpoints validate workDate equals today before allowing operations
   - Timezone-safe: Uses regex extraction for string dates and local component extraction for Date objects to prevent UTC drift
   - Historical edits blocked: Supervisors must submit correction requests for past entries
 - **Audit Trail & Correction Requests**: Tracks all data corrections through a formal review and approval process, providing transparency.
-- **Payroll Reports**: Generates payroll reports with worker earnings, grand totals, and CSV export functionality for all roles.
+- **Payroll Reports**: Generates payroll reports with worker earnings, open/close meter breakdown, grand totals, and CSV export functionality for all roles.
 - **User Management**: Administrators can manage user roles with Zod schema validation.
 - **Authentication**: OpenID Connect (OIDC) integration with Replit Auth (Google OAuth), enforcing email domain restrictions and assigning roles based on domain.
 - **Session Management**: PostgreSQL-backed persistent sessions using connect-pg-simple.
