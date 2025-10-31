@@ -111,6 +111,66 @@ When deployed on Replit, the application automatically uses:
 
 No additional configuration needed beyond the `.replit` file configuration.
 
+## Render.com Deployment
+
+### Quick Setup
+
+1. **Push your code to GitHub** (private repo is fine)
+
+2. **Create a new Web Service on Render:**
+   - Connect your GitHub repository
+   - Name: `mooya-empcare` (or your preference)
+   - Environment: `Node`
+   - Build Command: `npm install && npm run build`
+   - Start Command: `npm start`
+   - Plan: Free or Paid
+
+3. **Add Environment Variables** in Render dashboard:
+   ```
+   SESSION_SECRET="[generate a secure random string]"
+   DATABASE_URL="[your Neon PostgreSQL connection string]"
+   NODE_ENV="production"
+   
+   # Google OAuth (IMPORTANT: Update callback URL)
+   GOOGLE_CLIENT_ID="[your Google OAuth Client ID]"
+   GOOGLE_CLIENT_SECRET="[your Google OAuth Client Secret]"
+   GOOGLE_CALLBACK_URL="https://[your-app-name].onrender.com/api/callback"
+   
+   # Cloudflare R2 Storage (optional but recommended)
+   R2_ACCOUNT_ID="[your R2 Account ID]"
+   R2_ACCESS_KEY_ID="[your R2 Access Key]"
+   R2_SECRET_ACCESS_KEY="[your R2 Secret Key]"
+   R2_BUCKET_NAME="[your R2 bucket name]"
+   
+   # DO NOT SET REPL_ID - this makes it use Google OAuth + R2
+   ```
+
+4. **Update Google OAuth Settings:**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Navigate to your OAuth 2.0 Client
+   - Add authorized redirect URI: `https://[your-app-name].onrender.com/api/callback`
+   - Save changes
+
+5. **Deploy:**
+   - Render will automatically build and deploy
+   - First deployment may take 5-10 minutes
+   - Watch the build logs for any errors
+
+### Important Notes
+
+- **Port:** Render automatically sets `PORT` environment variable
+- **Storage:** Files use Cloudflare R2 (not local filesystem on Render)
+- **Database:** Uses your existing Neon PostgreSQL database
+- **Auto-deploy:** Push to `main` branch triggers automatic deployments
+- **Free tier:** Automatic spin-down after inactivity (first request slower)
+
+### Post-Deployment
+
+1. Visit your Render URL: `https://[your-app-name].onrender.com`
+2. Test Google OAuth login
+3. Upload a file to verify R2 storage works
+4. Check logs in Render dashboard if issues occur
+
 ## File Storage
 
 By default, files are stored locally in the `uploads/` directory on your machine.

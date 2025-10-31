@@ -17,6 +17,9 @@ try {
   process.exit(1);
 }
 
+// Also mark these local files as external to prevent bundling
+external.push('./replitAuth.js', './objectStorage.js');
+
 await build({
   entryPoints: ['server/index.ts'],
   bundle: true,
