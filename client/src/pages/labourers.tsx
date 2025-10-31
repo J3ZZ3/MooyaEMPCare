@@ -42,7 +42,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { validateSAId, formatDateForInput } from "@/lib/saIdValidation";
 import { insertLabourerSchema, type Labourer, type Project, type EmployeeType, type User } from "@shared/schema";
 import { z } from "zod";
-import { UserPlus, Search, Eye, Info } from "lucide-react";
+import { UserPlus, Search, Eye, Info, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -75,6 +75,7 @@ const SA_BANKS = [
 export default function LabourersPage() {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterProject, setFilterProject] = useState<string>("all");
   const [filterEmployeeType, setFilterEmployeeType] = useState<string>("all");
@@ -269,6 +270,149 @@ export default function LabourersPage() {
 
   const onSubmit = (data: LabourerFormData) => {
     createMutation.mutate(data);
+  };
+
+  // Edit form
+  const editForm = useForm<LabourerFormData>({
+    resolver: zodResolver(insertLabourerSchema.partial()),
+    defaultValues: {
+      userId: undefined,
+      projectId: "",
+      employeeTypeId: "",
+      firstName: "",
+      surname: "",
+      idNumber: "",
+      dateOfBirth: "",
+      gender: "",
+      contactNumber: "",
+      email: "",
+      physicalAddress: "",
+      profilePhotoPath: undefined,
+      idDocumentPath: undefined,
+      bankName: "",
+      accountNumber: "",
+      accountType: "cheque",
+      branchCode: "",
+      bankingProofPath: undefined,
+    },
+  });
+
+  // Watch edit form fields for auto-population
+  const editIdNumber = editForm.watch("idNumber");
+  const editBankName = editForm.watch("bankName");
+
+  // Auto-populate DOB and gender from ID number in edit form
+  useEffect(() => {
+    if (editIdNumber && editIdNumber.length >= 6) {
+      const idInfo = validateSAId(editIdNumber);
+      
+      editForm.clearErrors("idNumber");
+      
+      if (idInfo.isValid) {
+        if (idInfo.dateOfBirth && idInfo.gender) {
+          editForm.setValue("dateOfBirth", formatDateForInput(idInfo.dateOfBirth));
+          editForm.setValue("gender", idInfo.gender);
+        }
+      } else if (idInfo.error && editIdNumber.length >= 9) {
+        editForm.setError("idNumber", { message: idInfo.error });
+      }
+    }
+  }, [editIdNumber, editForm]);
+
+  // Auto-populate branch code in edit form
+  useEffect(() => {
+    if (editBankName) {
+      const selectedBank = SA_BANKS.find(bank => bank.name === editBankName);
+      if (selectedBank) {
+        editForm.setValue("branchCode", selectedBank.universalBranchCode);
+      }
+    }
+  }, [editBankName, editForm]);
+
+  // Populate edit form when labourer is selected
+  useEffect(() => {
+    if (selectedLabourer && editDialogOpen) {
+      editForm.reset({
+        userId: selectedLabourer.userId || undefined,
+        projectId: selectedLabourer.projectId || "",
+        employeeTypeId: selectedLabourer.employeeTypeId,
+        firstName: selectedLabourer.firstName,
+        surname: selectedLabourer.surname,
+        idNumber: selectedLabourer.idNumber,
+        dateOfBirth: selectedLabourer.dateOfBirth || "",
+        gender: selectedLabourer.gender || "",
+        contactNumber: selectedLabourer.contactNumber,
+        email: selectedLabourer.email || "",
+        physicalAddress: selectedLabourer.physicalAddress || "",
+        profilePhotoPath: selectedLabourer.profilePhotoPath || undefined,
+        idDocumentPath: selectedLabourer.idDocumentPath || undefined,
+        bankName: selectedLabourer.bankName,
+        accountNumber: selectedLabourer.accountNumber,
+        accountType: selectedLabourer.accountType || "cheque",
+        branchCode: selectedLabourer.branchCode,
+        bankingProofPath: selectedLabourer.bankingProofPath || undefined,
+      });
+    }
+  }, [selectedLabourer, editDialogOpen, editForm]);
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: Partial<LabourerFormData>) => {
+      if (!selectedLabourer) throw new Error("No labourer selected");
+      return apiRequest("PUT", `/api/labourers/${selectedLabourer.id}`, data);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Labourer details updated successfully",
+      });
+      setEditDialogOpen(false);
+      setSelectedLabourer(null);
+      // Refresh all labourers
+      const fetchAllLabourers = async () => {
+        const labourersByProject = await Promise.all(
+          projectsData.map(async (project) => {
+            try {
+              const response = await fetch(`/api/projects/${project.id}/labourers`);
+              if (response.ok) {
+                return await response.json();
+              }
+              return [];
+            } catch {
+              return [];
+            }
+          })
+        );
+        
+        let unassignedLabourers: Labourer[] = [];
+        try {
+          const response = await fetch(`/api/labourers/available`);
+          if (response.ok) {
+            unassignedLabourers = await response.json();
+          }
+        } catch {
+          // Silent fail
+        }
+        
+        const allCombined = [...labourersByProject.flat(), ...unassignedLabourers];
+        const uniqueLabourers = Array.from(
+          new Map(allCombined.map(l => [l.id, l])).values()
+        );
+        
+        setAllLabourers(uniqueLabourers);
+      };
+      fetchAllLabourers();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update labourer",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const onEditSubmit = (data: LabourerFormData) => {
+    updateMutation.mutate(data);
   };
 
   // Filter labourers
@@ -774,17 +918,32 @@ export default function LabourersPage() {
                       <TableCell>{project?.name || "-"}</TableCell>
                       <TableCell>{employeeType?.name || "-"}</TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedLabourer(labourer);
-                            setViewDialogOpen(true);
-                          }}
-                          data-testid={`button-view-${labourer.id}`}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedLabourer(labourer);
+                              setViewDialogOpen(true);
+                            }}
+                            data-testid={`button-view-${labourer.id}`}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          {canCreate && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedLabourer(labourer);
+                                setEditDialogOpen(true);
+                              }}
+                              data-testid={`button-edit-${labourer.id}`}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -858,6 +1017,381 @@ export default function LabourersPage() {
                 </div>
               </div>
             </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Edit Labourer Dialog */}
+      {selectedLabourer && (
+        <Dialog open={editDialogOpen} onOpenChange={(open) => {
+          setEditDialogOpen(open);
+          if (!open) setSelectedLabourer(null);
+        }}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Labourer: {selectedLabourer.firstName} {selectedLabourer.surname}</DialogTitle>
+            </DialogHeader>
+
+            <Form {...editForm}>
+              <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Project Selection */}
+                  <FormField
+                    control={editForm.control}
+                    name="projectId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Project *</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-edit-project">
+                              <SelectValue placeholder="Select project" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {projects?.map((project) => (
+                              <SelectItem key={project.id} value={project.id}>
+                                {project.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Employee Type */}
+                  <FormField
+                    control={editForm.control}
+                    name="employeeTypeId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Employee Type *</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingEmployeeTypes}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-edit-employee-type">
+                              <SelectValue placeholder={isLoadingEmployeeTypes ? "Loading..." : "Select employee type"} />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {employeeTypes?.map((type) => (
+                              <SelectItem key={type.id} value={type.id}>
+                                {type.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* First Name */}
+                  <FormField
+                    control={editForm.control}
+                    name="firstName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>First Name *</FormLabel>
+                        <FormControl>
+                          <Input {...field} data-testid="input-edit-first-name" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Surname */}
+                  <FormField
+                    control={editForm.control}
+                    name="surname"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Surname *</FormLabel>
+                        <FormControl>
+                          <Input {...field} data-testid="input-edit-surname" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* ID Number */}
+                  <FormField
+                    control={editForm.control}
+                    name="idNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>SA ID Number / Passport *</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder="13-digit SA ID or passport"
+                            data-testid="input-edit-id-number"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Date of Birth */}
+                  <FormField
+                    control={editForm.control}
+                    name="dateOfBirth"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Date of Birth *</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type="date"
+                            value={field.value || ""}
+                            data-testid="input-edit-dob"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Gender */}
+                  <FormField
+                    control={editForm.control}
+                    name="gender"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Gender</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-edit-gender">
+                              <SelectValue placeholder="Select gender" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="male">Male</SelectItem>
+                            <SelectItem value="female">Female</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Contact Number */}
+                  <FormField
+                    control={editForm.control}
+                    name="contactNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Contact Number *</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder="+27 or 0 followed by 9 digits"
+                            data-testid="input-edit-contact"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Email */}
+                  <FormField
+                    control={editForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input {...field} value={field.value || ""} type="email" placeholder="Optional" data-testid="input-edit-email" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* Physical Address */}
+                <FormField
+                  control={editForm.control}
+                  name="physicalAddress"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Physical Address</FormLabel>
+                      <FormControl>
+                        <Textarea {...field} value={field.value || ""} data-testid="input-edit-address" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Banking Details Section */}
+                <div className="border-t pt-4">
+                  <h3 className="font-semibold mb-4">Banking Details</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={editForm.control}
+                      name="bankName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Bank Name *</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-edit-bank-name">
+                                <SelectValue placeholder="Select a bank" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {SA_BANKS.map((bank) => (
+                                <SelectItem key={bank.name} value={bank.name}>
+                                  {bank.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="accountType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Account Type *</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-edit-account-type">
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="cheque">Cheque</SelectItem>
+                              <SelectItem value="savings">Savings</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="accountNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Account Number *</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="e.g., 1234567890" data-testid="input-edit-account-number" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="branchCode"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Branch Code * (Auto-filled)</FormLabel>
+                          <FormControl>
+                            <Input {...field} disabled className="bg-muted" data-testid="input-edit-branch-code" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* File Uploads Section */}
+                <div className="border-t pt-4">
+                  <h3 className="font-semibold mb-4">Documents</h3>
+                  <div className="grid grid-cols-3 gap-4">
+                    <FormField
+                      control={editForm.control}
+                      name="profilePhotoPath"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FileUpload
+                            label="Profile Photo"
+                            accept="image/*"
+                            maxFileSize={5 * 1024 * 1024}
+                            onUploadComplete={(path) => field.onChange(path || undefined)}
+                            currentFilePath={field.value || undefined}
+                            testId="upload-edit-profile-photo"
+                          />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="idDocumentPath"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FileUpload
+                            label="ID Document"
+                            accept="image/*,.pdf"
+                            maxFileSize={10 * 1024 * 1024}
+                            onUploadComplete={(path) => field.onChange(path || undefined)}
+                            currentFilePath={field.value || undefined}
+                            testId="upload-edit-id-document"
+                          />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="bankingProofPath"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FileUpload
+                            label="Banking Proof"
+                            accept="image/*,.pdf"
+                            maxFileSize={10 * 1024 * 1024}
+                            onUploadComplete={(path) => field.onChange(path || undefined)}
+                            currentFilePath={field.value || undefined}
+                            testId="upload-edit-banking-proof"
+                          />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setEditDialogOpen(false);
+                      setSelectedLabourer(null);
+                    }}
+                    data-testid="button-cancel-edit"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={updateMutation.isPending}
+                    data-testid="button-save-edit"
+                  >
+                    {updateMutation.isPending ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
+              </form>
+            </Form>
           </DialogContent>
         </Dialog>
       )}
