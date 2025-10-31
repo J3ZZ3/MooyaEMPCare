@@ -113,19 +113,28 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
-    // First, check if a user with this email already exists
+    // First, check if a user with this ID or email already exists
     // Note: email is required in our auth flow, but the schema allows null
     if (!userData.email) {
       throw new Error("Email is required for user upsert");
     }
 
-    const [existingUser] = await db
+    // Check if user exists by ID or email in a single query
+    const existingUsers = await db
       .select()
       .from(users)
-      .where(eq(users.email, userData.email as string));
+      .where(
+        or(
+          eq(users.id, userData.id as string),
+          eq(users.email, userData.email as string)
+        )
+      );
 
-    if (existingUser) {
-      // Update existing user (NEVER update the id - it has foreign key references!)
+    // If user exists (by either ID or email), update it
+    if (existingUsers.length > 0) {
+      // Use the existing user's ID to ensure we update the right record
+      const existingUser = existingUsers[0];
+      
       // Extract id from userData and only update the other fields
       const { id, ...updateData } = userData;
       const [updated] = await db
@@ -134,7 +143,7 @@ export class DatabaseStorage implements IStorage {
           ...updateData,
           updatedAt: new Date(),
         })
-        .where(eq(users.email, userData.email as string))
+        .where(eq(users.id, existingUser.id))
         .returning();
       return updated;
     } else {

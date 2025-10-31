@@ -1,0 +1,317 @@
+I need to implement two major improvements to my application:
+
+1. COMPREHENSIVE AUDIT TRAIL SYSTEM - Replace the old correction-request-only tracking with automatic logging of ALL system changes
+2. BANK-READY CSV PAYMENT FORMAT - Update payment CSV generation to be universally compatible with all South African banks
+
+Here's what needs to be done:
+
+========================================
+PART 1: DATABASE SCHEMA CHANGES
+========================================
+
+FILE: shared/schema.ts
+
+1. Add audit log action enum BEFORE the correctionRequests table definition:
+   - Add: export const auditActionEnum = pgEnum("audit_action", ["CREATE", "UPDATE", "DELETE", "ASSIGN", "SUBMIT", "APPROVE", "REJECT"]);
+
+2. Add audit_logs table BEFORE correctionRequests table:
+   export const auditLogs = pgTable("audit_logs", {
+     id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+     action: auditActionEnum("action").notNull(),
+     entityType: varchar("entity_type", { length: 50 }).notNull(),
+     entityId: varchar("entity_id").notNull(),
+     userId: varchar("user_id").notNull().references(() => users.id),
+     userName: varchar("user_name", { length: 255 }),
+     userEmail: varchar("user_email", { length: 255 }),
+     changes: jsonb("changes"),
+     metadata: jsonb("metadata"),
+     createdAt: timestamp("created_at").defaultNow(),
+   }, (table) => [
+     index("idx_audit_logs_entity").on(table.entityType, table.entityId),
+     index("idx_audit_logs_user").on(table.userId),
+     index("idx_audit_logs_action").on(table.action),
+     index("idx_audit_logs_created").on(table.createdAt),
+   ]);
+
+   export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
+     user: one(users, {
+       fields: [auditLogs.userId],
+       references: [users.id],
+     }),
+   }));
+
+3. In the type exports section, add:
+   export type InsertAuditLog = typeof auditLogs.$inferInsert;
+   export type AuditLog = typeof auditLogs.$inferSelect;
+
+========================================
+PART 2: CREATE AUDIT SERVICE
+========================================
+
+FILE: server/auditService.ts (CREATE NEW FILE)
+
+Create a complete audit service with these functions:
+- logAuditEvent(data: AuditLogData)
+- logCreate(entityType, entityId, userId, newData, metadata?)
+- logUpdate(entityType, entityId, userId, oldData, newData, metadata?)
+- logDelete(entityType, entityId, userId, deletedData, metadata?)
+- logAction(action, entityType, entityId, userId, metadata?)
+
+The service should:
+- Get user info for denormalization
+- Store changes as JSON
+- Not fail the main operation if audit logging fails (catch errors)
+
+========================================
+PART 3: UPDATE STORAGE LAYER
+========================================
+
+FILE: server/storage.ts
+
+1. Add imports at top:
+   - Add auditLogs to the imports from @shared/schema
+   - Add type AuditLog to imports
+   - Add: import { logCreate, logUpdate, logDelete, logAction } from "./auditService";
+
+2. Update IStorage interface - Add these methods:
+   - getAuditLogs(filters?: { entityType?, entityId?, userId?, action?, startDate?, endDate? }): Promise<AuditLog[]>
+   - getAuditLog(id: string): Promise<AuditLog | undefined>
+
+3. In DatabaseStorage class, add audit logging to these methods:
+
+   a) createProject() - After successful insert, add:
+      await logCreate("project", project.id, data.createdBy, project as any).catch(console.error);
+
+   b) updateProject() - Before update, fetch old data, then after update add:
+      const oldProject = await this.getProject(id);
+      // ... update code ...
+      const userId = (data as any).updatedBy || oldProject.createdBy;
+      await logUpdate("project", id, userId, oldProject as any, project as any).catch(console.error);
+
+   c) createLabourer() - After insert, add:
+      await logCreate("labourer", labourer.id, data.createdBy, labourer as any).catch(console.error);
+
+   d) updateLabourer() - Before update, fetch old data, then after update add:
+      const oldLabourer = await this.getLabourer(id);
+      // ... update code ...
+      const userId = (data as any).updatedBy || oldLabourer.createdBy;
+      await logUpdate("labourer", id, userId, oldLabourer as any, labourer as any).catch(console.error);
+
+   e) createWorkLog() - After insert, add:
+      await logCreate("work_log", log.id, data.recordedBy, log as any).catch(console.error);
+
+   f) updateWorkLog() - Before update, fetch old data, then after update add:
+      const oldLog = await this.getWorkLog(id);
+      // ... update code ...
+      const userId = (data as any).updatedBy || oldLog.recordedBy;
+      await logUpdate("work_log", id, userId, oldLog as any, log as any).catch(console.error);
+
+4. Implement the audit log query methods at end of DatabaseStorage class:
+   - getAuditLogs() - Query with filters, order by createdAt DESC
+   - getAuditLog() - Get single log by ID
+
+========================================
+PART 4: UPDATE ROUTES - AUDIT LOG ENDPOINTS
+========================================
+
+FILE: server/routes.ts
+
+1. Find the route: app.get("/api/payment-periods/:id/payment-file", ...)
+
+2. COMPLETELY REPLACE the CSV generation section (around line 1238-1331) with:
+
+      // Generate CSV content - Universal bank-compatible format
+      const csvRows: string[] = [];
+      
+      // Universal CSV Header - Standard format recognized by all banks
+      csvRows.push('Account Number,Beneficiary Name,Amount,Branch Code,Account Type,Reference');
+
+      const endDate = typeof period.endDate === 'string' 
+        ? period.endDate.split('T')[0].replace(/-/g, '')
+        : new Date(period.endDate).toISOString().split('T')[0].replace(/-/g, '');
+
+      // Helper function to escape CSV fields per RFC 4180 standard
+      const escapeCsvField = (field: string | null | undefined): string => {
+        if (field == null || field === undefined) return '';
+        const str = String(field).trim();
+        if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
+      // Convert account type to numeric code for universal bank compatibility
+      const formatAccountTypeCode = (type: string): string => {
+        const normalized = type.toLowerCase().trim();
+        if (normalized === 'cheque' || normalized === 'check' || normalized === 'current') return '1';
+        if (normalized === 'savings' || normalized === 'saving') return '2';
+        return '1';
+      };
+
+      // Sanitize beneficiary name
+      const sanitizeName = (name: string): string => {
+        if (!name) return '';
+        return name.trim()
+          .replace(/[^\w\s\-']/g, '')
+          .replace(/\s+/g, ' ')
+          .substring(0, 50)
+          .toUpperCase();
+      };
+
+      // Format reference - fixed to "mooyawireless"
+      const formatReference = (): string => {
+        return 'mooyawireless';
+      };
+
+      // Format amount
+      const formatAmount = (value: string | number): string => {
+        const num = typeof value === 'string' ? parseFloat(value) : value;
+        if (isNaN(num) || num <= 0) return '0.00';
+        return num.toFixed(2);
+      };
+
+      // Add data rows
+      for (const { entry, labourer } of entries) {
+        const amount = formatAmount(entry.totalEarnings);
+        if (parseFloat(amount) <= 0) continue;
+
+        const accountNumber = (labourer.accountNumber?.trim() || '').replace(/\s+/g, '');
+        const beneficiaryName = sanitizeName(`${labourer.firstName} ${labourer.surname}`);
+        const branchCode = (labourer.branchCode?.trim() || '').replace(/\s+/g, '');
+        const accountType = formatAccountTypeCode(labourer.accountType);
+        const reference = formatReference();
+
+        if (!accountNumber || !beneficiaryName || !branchCode) continue;
+
+        const row = [
+          escapeCsvField(accountNumber),
+          escapeCsvField(beneficiaryName),
+          amount,
+          escapeCsvField(branchCode),
+          accountType,
+          escapeCsvField(reference),
+        ].join(',');
+
+        csvRows.push(row);
+      }
+
+      const csvContent = csvRows.join('\r\n');
+      const filename = `PAYMENT_${project.name.replace(/[^A-Z0-9]/gi, '_').toUpperCase()}_${endDate}.csv`;
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send('\ufeff' + csvContent);
+
+3. Add audit log routes BEFORE correction request routes:
+
+   // ============= Audit Log Routes =============
+   app.get("/api/audit-logs", isAuthenticated, requireRole("super_admin", "admin"), async (req: any, res) => {
+     try {
+       const { entityType, entityId, userId, action, startDate, endDate } = req.query;
+       const filters: any = {};
+       if (entityType) filters.entityType = entityType;
+       if (entityId) filters.entityId = entityId;
+       if (userId) filters.userId = userId;
+       if (action) filters.action = action;
+       if (startDate) filters.startDate = new Date(startDate as string);
+       if (endDate) filters.endDate = new Date(endDate as string);
+       const logs = await storage.getAuditLogs(filters);
+       res.json(logs);
+     } catch (error: any) {
+       console.error("Error fetching audit logs:", error);
+       res.status(500).json({ message: error.message || "Failed to fetch audit logs" });
+     }
+   });
+
+   app.get("/api/audit-logs/:id", isAuthenticated, requireRole("super_admin", "admin"), async (req, res) => {
+     try {
+       const log = await storage.getAuditLog(req.params.id);
+       if (!log) {
+         return res.status(404).json({ message: "Audit log not found" });
+       }
+       res.json(log);
+     } catch (error: any) {
+       console.error("Error fetching audit log:", error);
+       res.status(500).json({ message: error.message || "Failed to fetch audit log" });
+     }
+   });
+
+4. In update routes, add user ID for audit logging:
+   - In app.put("/api/projects/:id", add: (data as any).updatedBy = req.dbUser.id; before calling updateProject
+   - In app.put("/api/labourers/:id", add: (data as any).updatedBy = req.dbUser.id; before calling updateLabourer
+   - In app.put("/api/work-logs/:id", add: (data as any).updatedBy = req.dbUser.id; before calling updateWorkLog
+
+========================================
+PART 5: UPDATE FRONTEND - AUDIT PAGE
+========================================
+
+FILE: client/src/pages/audit.tsx
+
+1. Add import: import type { User, CorrectionRequest, AuditLog } from "@shared/schema";
+
+2. Add action colors constant:
+   const actionColors: Record<string, string> = {
+     CREATE: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+     UPDATE: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+     DELETE: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+     ASSIGN: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
+     SUBMIT: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+     APPROVE: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+     REJECT: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+   };
+
+3. Add state: const [activeTab, setActiveTab] = useState<"audit" | "corrections">("audit");
+
+4. Add query for audit logs:
+   const { data: auditLogs, isLoading: isLoadingAudit } = useQuery<AuditLog[]>({
+     queryKey: ["/api/audit-logs"],
+     enabled: user.role === "super_admin" || user.role === "admin",
+   });
+
+5. Rename requests query loading: isLoading to isLoadingCorrections
+
+6. Update the return JSX:
+   - Change description text to be conditional based on activeTab
+   - Add tabs UI with "System Audit Log" and "Correction Requests" buttons
+   - Add complete audit log table section (with tabs conditional rendering)
+   - Wrap correction requests section in {activeTab === "corrections" && (...)}
+   - Show audit logs table when activeTab === "audit"
+
+   Audit log table should show:
+   - Timestamp (formatted)
+   - Action (badge with color)
+   - Entity (type and ID)
+   - User (name and email)
+   - Changes (preview of first 2 fields)
+   - Details button
+
+========================================
+PART 6: DATABASE MIGRATION
+========================================
+
+After all code changes, run:
+npm run db:push
+
+This will create the audit_logs table in the database.
+
+========================================
+CRITICAL REQUIREMENTS:
+========================================
+
+1. CSV Format MUST be:
+   - Column order: Account Number, Beneficiary Name, Amount, Branch Code, Account Type, Reference
+   - Account Type: Numeric codes (1=cheque, 2=savings)
+   - Beneficiary Name: Uppercase, max 50 chars, sanitized
+   - Reference: Always "mooyawireless"
+   - RFC 4180 compliant escaping
+   - UTF-8 BOM prefix
+   - CRLF line endings
+
+2. Audit Trail MUST:
+   - Automatically log all CREATE, UPDATE operations
+   - Store user info, timestamp, and before/after values
+   - Not fail main operations if audit logging fails
+   - Be accessible only to admins
+
+3. Remove old audit implementation if any exists - replace with new comprehensive system
+
+Please implement all these changes systematically, ensuring each part is completed before moving to the next.
