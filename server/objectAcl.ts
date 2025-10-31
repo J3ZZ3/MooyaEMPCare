@@ -1,5 +1,3 @@
-import { File } from "@google-cloud/storage";
-
 const ACL_POLICY_METADATA_KEY = "custom:aclPolicy";
 
 export enum ObjectPermission {
@@ -7,72 +5,46 @@ export enum ObjectPermission {
   WRITE = "write",
 }
 
-export interface ObjectAclPolicy {
+export interface AclPolicy {
   owner: string;
   visibility: "public" | "private";
 }
 
-// Sets the ACL policy to the object metadata
-export async function setObjectAclPolicy(
-  objectFile: File,
-  aclPolicy: ObjectAclPolicy,
-): Promise<void> {
-  const [exists] = await objectFile.exists();
-  if (!exists) {
-    throw new Error(`Object not found: ${objectFile.name}`);
-  }
+// Alias for ObjectAclPolicy
+export interface ObjectAclPolicy extends AclPolicy {}
 
-  await objectFile.setMetadata({
-    metadata: {
-      [ACL_POLICY_METADATA_KEY]: JSON.stringify(aclPolicy),
-    },
-  });
-}
+export class ObjectAcl {
+  /**
+   * Check if user can access object based on ACL policy
+   */
+  static canAccess(userId: string | undefined, policy: AclPolicy, requestedPermission: "read" | "write"): boolean {
+    // Public objects are always readable
+    if (policy.visibility === "public" && requestedPermission === "read") {
+      return true;
+    }
 
-// Gets the ACL policy from the object metadata
-export async function getObjectAclPolicy(
-  objectFile: File,
-): Promise<ObjectAclPolicy | null> {
-  const [metadata] = await objectFile.getMetadata();
-  const aclPolicy = metadata?.metadata?.[ACL_POLICY_METADATA_KEY];
-  if (!aclPolicy) {
-    return null;
-  }
-  return JSON.parse(aclPolicy as string);
-}
+    // Private objects require authentication and ownership
+    if (policy.visibility === "private") {
+      return userId === policy.owner;
+    }
 
-// Checks if the user can access the object
-export async function canAccessObject({
-  userId,
-  objectFile,
-  requestedPermission,
-}: {
-  userId?: string;
-  objectFile: File;
-  requestedPermission: ObjectPermission;
-}): Promise<boolean> {
-  const aclPolicy = await getObjectAclPolicy(objectFile);
-  if (!aclPolicy) {
     return false;
   }
 
-  // Public objects are always accessible for read
-  if (
-    aclPolicy.visibility === "public" &&
-    requestedPermission === ObjectPermission.READ
-  ) {
-    return true;
+  /**
+   * Default ACL policy for new uploads
+   */
+  static defaultPolicy(owner: string): AclPolicy {
+    return {
+      owner,
+      visibility: "private",
+    };
   }
-
-  // Access control requires the user id
-  if (!userId) {
-    return false;
-  }
-
-  // The owner of the object can always access it
-  if (aclPolicy.owner === userId) {
-    return true;
-  }
-
-  return false;
 }
+
+// Export the ACL_POLICY_METADATA_KEY for use in storage implementations
+export { ACL_POLICY_METADATA_KEY };
+
+// Note: The Google Cloud Storage-specific functions (setObjectAclPolicy, getObjectAclPolicy, canAccessObject)
+// have been removed as we no longer use Google Cloud Storage. If needed, they can be re-implemented
+// for specific storage backends (R2, Replit Object Storage, etc.) in their respective modules.

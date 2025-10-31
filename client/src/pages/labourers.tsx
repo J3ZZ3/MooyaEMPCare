@@ -964,6 +964,17 @@ export default function LabourersPage() {
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
+              {/* Profile Photo */}
+              {selectedLabourer.profilePhotoPath && (
+                <div className="flex justify-center">
+                  <img 
+                    src={selectedLabourer.profilePhotoPath} 
+                    alt={`${selectedLabourer.firstName} ${selectedLabourer.surname}`}
+                    className="w-64 h-64 object-cover border-2 border-border rounded-lg"
+                  />
+                </div>
+              )}
+              
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">ID Number</p>
@@ -1016,6 +1027,43 @@ export default function LabourersPage() {
                   </div>
                 </div>
               </div>
+              
+              {/* Documents Section */}
+              {(selectedLabourer.idDocumentPath || selectedLabourer.bankingProofPath) && (
+                <div className="border-t pt-4">
+                  <h4 className="font-semibold mb-4">Documents</h4>
+                  <div className="grid grid-cols-1 gap-4">
+                    {selectedLabourer.idDocumentPath && (
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground mb-2">ID Document</p>
+                        <a 
+                          href={selectedLabourer.idDocumentPath} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline flex items-center gap-2"
+                        >
+                          <Eye className="w-4 h-4" />
+                          View ID Document
+                        </a>
+                      </div>
+                    )}
+                    {selectedLabourer.bankingProofPath && (
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground mb-2">Banking Proof</p>
+                        <a 
+                          href={selectedLabourer.bankingProofPath} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline flex items-center gap-2"
+                        >
+                          <Eye className="w-4 h-4" />
+                          View Banking Proof
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </DialogContent>
         </Dialog>

@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import Uppy from "@uppy/core";
 import { DashboardModal } from "@uppy/react";
-import AwsS3 from "@uppy/aws-s3";
+import XHRUpload from "@uppy/xhr-upload";
+import "@uppy/core/css/style.min.css";
+import "@uppy/dashboard/css/style.min.css";
 import { Button } from "@/components/ui/button";
 import { Upload, FileCheck, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -32,74 +34,75 @@ export function FileUpload({
     onUploadCompleteRef.current = onUploadComplete;
   }, [onUploadComplete]);
 
-  const [uppy] = useState(() =>
-    new Uppy({
+  const [uppy] = useState(() => {
+    const u = new Uppy({
       restrictions: {
         maxFileSize,
         maxNumberOfFiles: 1,
         allowedFileTypes: accept.split(",").map((type) => type.trim()),
       },
-    }).use(AwsS3, {
-      shouldUseMultipart: false,
-      async getUploadParameters(file) {
-        const response = await fetch("/api/objects/upload", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to get upload URL");
-        }
-
-        const data = await response.json();
-
-        return {
-          method: "PUT",
-          url: data.uploadURL,
-          headers: {
-            "Content-Type": file.type || "application/octet-stream",
-          },
-        };
+    });
+    
+    // Don't use Dashboard plugin here - DashboardModal handles it
+    
+    u.use(XHRUpload, {
+      endpoint: "/api/objects/upload-direct",
+      fieldName: "file",
+      getResponseData: (xhr: XMLHttpRequest) => {
+        // Parse JSON response and convert objectPath to url for XHRUpload
+        const response = JSON.parse(xhr.responseText);
+        return { url: response.objectPath };
       },
-    })
-  );
+    });
+    
+    // Auto-start upload when file is added
+    u.on('file-added', (file) => {
+      u.upload().catch((err) => {
+        console.error('Upload failed:', err);
+      });
+    });
+    
+    return u;
+  });
 
   useEffect(() => {
     const handleUploadSuccess = async (file: any, response: any) => {
-      if (!file || !response.uploadURL) return;
-
-      // Set ACL to private for labourer documents
-      const aclResponse = await fetch("/api/objects/acl", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          objectURL: response.uploadURL,
-          visibility: "private",
-        }),
-      });
-
-      if (!aclResponse.ok) {
-        console.error("Failed to set object ACL");
+      console.log("Upload success response:", response);
+      
+      if (!file) {
+        console.error("No file in upload response");
         return;
       }
 
-      const aclData = await aclResponse.json();
-      setUploadedPath(aclData.objectPath);
-      onUploadCompleteRef.current(aclData.objectPath);
+      // XHRUpload returns the response with url (converted from objectPath by getResponseData)
+      const uploadedPath = response?.body?.url || response?.url;
+      
+      if (!uploadedPath) {
+        console.error("No url in response:", response);
+        setModalOpen(false);
+        uppy.cancelAll();
+        return;
+      }
+
+      console.log("Uploaded path:", uploadedPath);
+      setUploadedPath(uploadedPath);
+      onUploadCompleteRef.current(uploadedPath);
       setModalOpen(false);
       
       // Clear Uppy queue for next upload
       uppy.cancelAll();
     };
 
+    const handleUploadError = (error: any) => {
+      console.error("Upload error:", error);
+    };
+
     uppy.on("upload-success", handleUploadSuccess);
+    uppy.on("upload-error", handleUploadError);
 
     return () => {
       uppy.off("upload-success", handleUploadSuccess);
+      uppy.off("upload-error", handleUploadError);
     };
   }, [uppy]);
 
@@ -135,7 +138,10 @@ export function FileUpload({
         <Button
           type="button"
           variant="outline"
-          onClick={() => setModalOpen(true)}
+          onClick={() => {
+            console.log("Upload button clicked for:", label);
+            setModalOpen(true);
+          }}
           className="w-full"
           data-testid={testId}
         >
@@ -147,7 +153,10 @@ export function FileUpload({
       <DashboardModal
         uppy={uppy}
         open={modalOpen}
-        onRequestClose={() => setModalOpen(false)}
+        onRequestClose={() => {
+          console.log("Modal closed");
+          setModalOpen(false);
+        }}
         proudlyDisplayPoweredByUppy={false}
       />
     </div>

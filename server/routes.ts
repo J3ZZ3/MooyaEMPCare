@@ -1,12 +1,12 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import multer from "multer";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated, isLabourerAuthenticated, requireRole } from "./replitAuth";
 import bcrypt from "bcrypt";
 import {
-  ObjectStorageService,
-  ObjectNotFoundError,
-} from "./objectStorage";
+  R2StorageService,
+  ObjectNotFoundError as R2ObjectNotFoundError,
+} from "./r2Storage";
 import {
   insertEmployeeTypeSchema,
   insertProjectSchema,
@@ -25,15 +25,44 @@ import {
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
 
+const upload = multer({ storage: multer.memoryStorage() });
+
+// Environment detection
+const IS_REPLIT = process.env.REPL_ID !== undefined;
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Dynamic imports based on environment
+  const authModule = IS_REPLIT 
+    ? await import('./replitAuth.js')
+    : await import('./auth.js');
+
+  const { setupAuth, isAuthenticated, isLabourerAuthenticated, requireRole } = authModule;
+
+  // Storage service selection
+  const StorageService = IS_REPLIT
+    ? (await import('./objectStorage.js')).ObjectStorageService
+    : R2StorageService;
+
+  const ObjectNotFoundError = IS_REPLIT
+    ? (await import('./objectStorage.js')).ObjectNotFoundError
+    : R2ObjectNotFoundError;
+
+  // Helper functions for user extraction
+  function getUserId(req: any): string {
+    return IS_REPLIT ? req.user?.claims?.sub : req.user?.id;
+  }
+
+  function getUserEmail(req: any): string {
+    return IS_REPLIT ? req.user.claims.email : req.user.email;
+  }
+
   // Auth middleware
   await setupAuth(app);
 
   // ============= Authentication Routes =============
   app.get('/api/user', isAuthenticated, async (req: any, res) => {
     try {
-      // Look up by email (not sub) to handle OIDC sub rotation
-      const userEmail = req.user.claims.email;
+      const userEmail = getUserEmail(req);
       const user = await storage.getUserByEmail(userEmail);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
@@ -47,8 +76,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      // Look up by email (not sub) to handle OIDC sub rotation
-      const userEmail = req.user.claims.email;
+      const userEmail = getUserEmail(req);
       const user = await storage.getUserByEmail(userEmail);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
@@ -100,36 +128,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============= Object Storage Routes =============
   // Serve public objects
   app.get("/public-objects/:filePath(*)", async (req, res) => {
-    const filePath = req.params.filePath;
-    const objectStorageService = new ObjectStorageService();
-    try {
-      const file = await objectStorageService.searchPublicObject(filePath);
-      if (!file) {
-        return res.status(404).json({ error: "File not found" });
+    if (IS_REPLIT) {
+      const filePath = req.params.filePath;
+      const storageService = new StorageService();
+      try {
+        const file = await storageService.searchPublicObject(filePath);
+        if (!file) {
+          return res.status(404).json({ error: "File not found" });
+        }
+        storageService.downloadObject(file, res);
+      } catch (error) {
+        console.error("Error searching for public object:", error);
+        return res.status(500).json({ error: "Internal server error" });
       }
-      objectStorageService.downloadObject(file, res);
-    } catch (error) {
-      console.error("Error searching for public object:", error);
-      return res.status(500).json({ error: "Internal server error" });
+    } else {
+      res.status(404).json({ error: "Public objects not implemented" });
     }
   });
 
   // Serve private objects with ACL check
   app.get("/objects/:objectPath(*)", isAuthenticated, async (req: any, res) => {
-    const userId = req.user?.claims?.sub;
-    const objectStorageService = new ObjectStorageService();
+    const userId = getUserId(req);
+    const storageService = new StorageService();
     try {
-      const objectFile = await objectStorageService.getObjectEntityFile(
+      const objectFile = await storageService.getObjectEntityFile(
         req.path,
       );
-      const canAccess = await objectStorageService.canAccessObjectEntity({
-        objectFile,
+      const canAccess = await storageService.canAccessObjectEntity({
+        file: objectFile,
         userId: userId,
       });
       if (!canAccess) {
         return res.sendStatus(403);
       }
-      objectStorageService.downloadObject(objectFile, res);
+      storageService.downloadObject(objectFile, res);
     } catch (error) {
       console.error("Error checking object access:", error);
       if (error instanceof ObjectNotFoundError) {
@@ -139,11 +171,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get upload URL
+  // Get upload URL (for Replit)
   app.post("/api/objects/upload", isAuthenticated, async (req, res) => {
-    const objectStorageService = new ObjectStorageService();
-    const uploadURL = await objectStorageService.getObjectEntityUploadURL();
-    res.json({ uploadURL });
+    if (IS_REPLIT) {
+      const storageService = new StorageService();
+      const uploadURL = await storageService.getObjectEntityUploadURL();
+      res.json({ uploadURL });
+    } else {
+      res.status(400).json({ error: "Use /api/objects/upload-direct for direct uploads" });
+    }
+  });
+
+  // Handle direct file upload
+  app.post("/api/objects/upload-direct", isAuthenticated, upload.single('file'), async (req: any, res) => {
+    try {
+      console.log("Upload request received");
+      console.log("Request file:", req.file ? "File present" : "No file");
+      
+      // Get file from multer
+      if (!req.file) {
+        console.error("No file provided in upload request");
+        return res.status(400).json({ error: "No file provided" });
+      }
+
+      const userId = getUserId(req);
+      console.log("Uploading file for user:", userId);
+      
+      if (IS_REPLIT) {
+        // Replit: Use StorageService to get upload URL and upload file
+        const storageService = new StorageService();
+        const uploadURL = await storageService.getObjectEntityUploadURL();
+        
+        // Upload file buffer to signed URL
+        const response = await fetch(uploadURL, {
+          method: 'PUT',
+          body: req.file.buffer,
+          headers: { 'Content-Type': req.file.mimetype }
+        });
+        
+        if (!response.ok) {
+          return res.status(500).json({ error: "Upload failed" });
+        }
+        
+        // Set ACL
+        const objectPath = await storageService.trySetObjectEntityAclPolicy(uploadURL, {
+          owner: userId,
+          visibility: "private",
+        });
+        
+        res.json({ objectPath });
+      } else {
+        // R2/Local: Direct upload
+        const storageService = new StorageService();
+        const objectPath = await storageService.uploadFile(
+          Date.now().toString(),
+          req.file.buffer,
+          req.file.mimetype
+        );
+
+        console.log("File uploaded successfully to:", objectPath);
+
+        // Set ACL to private by default
+        await storageService.trySetObjectEntityAclPolicy(objectPath, {
+          owner: userId,
+          visibility: "private",
+        });
+
+        // Return the path that the client will use
+        res.json({ objectPath });
+      }
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      res.status(500).json({ error: "Failed to upload file" });
+    }
   });
 
   // Update object ACL after upload
@@ -159,7 +259,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     // Only admins, project managers, and super admins can set visibility to public
-    const userId = req.user?.claims?.sub;
+    const userId = getUserId(req);
     const user = await storage.getUser(userId);
     
     if (visibility === "public") {
@@ -170,8 +270,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     try {
-      const objectStorageService = new ObjectStorageService();
-      const objectPath = await objectStorageService.trySetObjectEntityAclPolicy(
+      const storageService = new StorageService();
+      const objectPath = await storageService.trySetObjectEntityAclPolicy(
         req.body.objectURL,
         {
           owner: userId,
@@ -242,8 +342,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============= Project Routes =============
   app.get("/api/projects", isAuthenticated, async (req: any, res) => {
     try {
-      // Look up by email (not sub) to handle OIDC sub rotation
-      const userEmail = req.user.claims.email;
+      const userEmail = getUserEmail(req);
       const user = await storage.getUserByEmail(userEmail);
       
       if (!user) {
@@ -1501,8 +1600,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/correction-requests", isAuthenticated, async (req: any, res) => {
     try {
-      // Look up by email (not sub) to handle OIDC sub rotation
-      const userEmail = req.user.claims.email;
+      const userEmail = getUserEmail(req);
       const user = await storage.getUserByEmail(userEmail);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
