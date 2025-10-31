@@ -28,6 +28,11 @@ The backend uses Express.js with Node.js, providing a RESTful API. Key features 
   - Login credentials: contactNumber OR email + RSA ID/passport number
   - UI provides clear informational notice explaining the auto-creation process
   - Email field labeled "Email (for login)" to guide data entry
+- **Banking Details Standardization**: Onboarding form features standardized bank selection with automatic branch code population:
+  - Dropdown menu with 20 major South African banks (Absa, Capitec, FNB, Standard Bank, Nedbank, etc.)
+  - Universal branch codes automatically populated when bank is selected
+  - Branch code field is read-only/disabled to prevent manual errors
+  - Ensures consistent payment file generation and reduces data entry errors
 - **Password Security**: RSA ID/passport numbers are hashed using bcrypt (10 salt rounds) and stored in labourers.passwordHash field
 - **Session Isolation**: Separate middleware (isAuthenticated for staff, isLabourerAuthenticated for labourers) prevents cross-mode session interference
   - Session augmentation with isLabourerSession flag and labourerId for type safety
