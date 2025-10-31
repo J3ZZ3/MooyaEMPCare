@@ -23,7 +23,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ArrowLeft, UserPlus, MapPin, Calendar, DollarSign, TrendingUp, AlertTriangle, FileEdit, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, ArrowLeft, UserPlus, MapPin, Calendar, DollarSign, TrendingUp, AlertTriangle, FileEdit, ChevronLeft, ChevronRight, MoreHorizontal, Trash2, MoveRight } from "lucide-react";
 import { useState } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Project, User, Labourer, EmployeeType } from "@shared/schema";
@@ -31,6 +31,22 @@ import { format, startOfDay, isSameDay } from "date-fns";
 import CorrectionRequestDialog from "@/components/CorrectionRequestDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useMutation } from "@tanstack/react-query";
 
 interface ProjectDetailsProps {
   user: User;
@@ -47,6 +63,9 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
+  const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
+  const [labourerToReassign, setLabourerToReassign] = useState<Labourer | null>(null);
+  const [targetProjectId, setTargetProjectId] = useState<string>("");
 
   const { data: project, isLoading: projectLoading } = useQuery<Project>({
     queryKey: [`/api/projects/${projectId}`],
@@ -80,6 +99,74 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
     queryKey: [`/api/projects/${projectId}/work-logs`],
     enabled: !!projectId,
   });
+
+  // Fetch all projects for reassignment
+  const { data: allProjects = [] } = useQuery<Project[]>({
+    queryKey: ["/api/projects"],
+    enabled: reassignDialogOpen,
+  });
+
+  // Remove labourer from project mutation
+  const removeLabourerMutation = useMutation({
+    mutationFn: async (labourerId: string) => {
+      return apiRequest("PUT", `/api/labourers/${labourerId}`, { projectId: null });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Labourer removed from project",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/labourers`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/labourers/available"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to remove labourer",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Reassign labourer mutation
+  const reassignLabourerMutation = useMutation({
+    mutationFn: async ({ labourerId, newProjectId }: { labourerId: string; newProjectId: string }) => {
+      return apiRequest("PUT", `/api/labourers/${labourerId}`, { projectId: newProjectId });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Labourer reassigned successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/labourers`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/labourers/available"] });
+      setReassignDialogOpen(false);
+      setLabourerToReassign(null);
+      setTargetProjectId("");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to reassign labourer",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleReassignLabourer = () => {
+    if (!labourerToReassign || !targetProjectId) {
+      toast({
+        title: "Error",
+        description: "Please select a project",
+        variant: "destructive",
+      });
+      return;
+    }
+    reassignLabourerMutation.mutate({ 
+      labourerId: labourerToReassign.id, 
+      newProjectId: targetProjectId 
+    });
+  };
 
   const handleAssignLabourers = async () => {
     if (selectedLabourerIds.length === 0) {
@@ -328,23 +415,63 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedEntity({
-                                  type: "labourer",
-                                  id: labourer.id,
-                                  data: labourer,
-                                  displayName: `${labourer.firstName} ${labourer.surname}`
-                                });
-                                setCorrectionDialogOpen(true);
-                              }}
-                              data-testid={`button-request-correction-${labourer.id}`}
-                            >
-                              <FileEdit className="h-4 w-4 mr-2" />
-                              Request Correction
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  data-testid={`button-labourer-actions-${labourer.id}`}
+                                >
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                {canManage && (
+                                  <>
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setLabourerToReassign(labourer);
+                                        setReassignDialogOpen(true);
+                                      }}
+                                      data-testid={`menu-reassign-${labourer.id}`}
+                                    >
+                                      <MoveRight className="h-4 w-4 mr-2" />
+                                      Reassign to Project
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        if (confirm(`Remove ${labourer.firstName} ${labourer.surname} from this project?`)) {
+                                          removeLabourerMutation.mutate(labourer.id);
+                                        }
+                                      }}
+                                      data-testid={`menu-remove-${labourer.id}`}
+                                      className="text-destructive"
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Remove from Project
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                  </>
+                                )}
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setSelectedEntity({
+                                      type: "labourer",
+                                      id: labourer.id,
+                                      data: labourer,
+                                      displayName: `${labourer.firstName} ${labourer.surname}`
+                                    });
+                                    setCorrectionDialogOpen(true);
+                                  }}
+                                  data-testid={`menu-request-correction-${labourer.id}`}
+                                >
+                                  <FileEdit className="h-4 w-4 mr-2" />
+                                  Request Correction
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         </TableRow>
                       );
@@ -788,6 +915,62 @@ export default function ProjectDetails({ user }: ProjectDetailsProps) {
           entityDisplayName={selectedEntity.displayName}
         />
       )}
+
+      {/* Reassign Labourer Dialog */}
+      <Dialog open={reassignDialogOpen} onOpenChange={(open) => {
+        setReassignDialogOpen(open);
+        if (!open) {
+          setLabourerToReassign(null);
+          setTargetProjectId("");
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reassign Labourer to Project</DialogTitle>
+            <DialogDescription>
+              Select a new project for {labourerToReassign?.firstName} {labourerToReassign?.surname}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">New Project</label>
+              <Select value={targetProjectId} onValueChange={setTargetProjectId}>
+                <SelectTrigger data-testid="select-target-project">
+                  <SelectValue placeholder="Select a project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allProjects
+                    .filter(p => p.id !== projectId && p.status === "active")
+                    .map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setReassignDialogOpen(false)}
+              data-testid="button-cancel-reassign"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleReassignLabourer}
+              disabled={!targetProjectId || reassignLabourerMutation.isPending}
+              data-testid="button-confirm-reassign"
+            >
+              {reassignLabourerMutation.isPending ? "Reassigning..." : "Reassign"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
