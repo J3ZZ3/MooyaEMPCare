@@ -352,6 +352,43 @@ export const paymentPeriodEntriesRelations = relations(paymentPeriodEntries, ({ 
   }),
 }));
 
+// Audit action enum
+export const auditActionEnum = pgEnum("audit_action", [
+  "CREATE",
+  "UPDATE",
+  "DELETE",
+  "ASSIGN",
+  "SUBMIT",
+  "APPROVE",
+  "REJECT"
+]);
+
+// Audit logs table
+export const auditLogs = pgTable("audit_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  action: auditActionEnum("action").notNull(),
+  entityType: varchar("entity_type", { length: 50 }).notNull(),
+  entityId: varchar("entity_id").notNull(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  userName: varchar("user_name", { length: 255 }),
+  userEmail: varchar("user_email", { length: 255 }),
+  changes: jsonb("changes"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_audit_logs_entity").on(table.entityType, table.entityId),
+  index("idx_audit_logs_user").on(table.userId),
+  index("idx_audit_logs_action").on(table.action),
+  index("idx_audit_logs_created").on(table.createdAt),
+]);
+
+export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
+  user: one(users, {
+    fields: [auditLogs.userId],
+    references: [users.id],
+  }),
+}));
+
 // Correction request status enum
 export const correctionStatusEnum = pgEnum("correction_status", [
   "pending",
@@ -416,6 +453,9 @@ export type PaymentPeriodEntry = typeof paymentPeriodEntries.$inferSelect;
 
 export type InsertCorrectionRequest = typeof correctionRequests.$inferInsert;
 export type CorrectionRequest = typeof correctionRequests.$inferSelect;
+
+export type InsertAuditLog = typeof auditLogs.$inferInsert;
+export type AuditLog = typeof auditLogs.$inferSelect;
 
 // Zod schemas for validation
 export const insertEmployeeTypeSchema = createInsertSchema(employeeTypes).omit({

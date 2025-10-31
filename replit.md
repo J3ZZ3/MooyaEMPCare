@@ -52,7 +52,19 @@ The backend uses Express.js with Node.js, providing a RESTful API. Key features 
   - Server-side: POST and PUT endpoints validate workDate equals today before allowing operations
   - Timezone-safe: Uses regex extraction for string dates and local component extraction for Date objects to prevent UTC drift
   - Historical edits blocked: Supervisors must submit correction requests for past entries
-- **Audit Trail & Correction Requests**: Tracks all data corrections through a formal review and approval process, providing transparency.
+- **Comprehensive Audit Trail System**: Dual-mode audit tracking with tabbed interface (/audit):
+  - **System Audit Log Tab** (admins/super_admins only): Automatic comprehensive tracking of all system changes
+    - Auto-logged actions: CREATE, UPDATE, DELETE, ASSIGN, SUBMIT, APPROVE, REJECT
+    - Tracks entity type, entity ID, user details (name, email), changes (JSONB), and metadata
+    - Audit service (server/auditService.ts) with logCreate/logUpdate helpers
+    - Non-blocking logging (failures logged to console without breaking operations)
+    - Table displays: Timestamp, Action (color-coded badge), Entity (type + ID), User (name + email), Changes (JSON preview)
+  - **Correction Requests Tab**: Manual correction request workflow for data changes
+    - All authenticated users can create correction requests for historical data changes
+    - super_admin, admin, and project_manager can review and approve/reject requests
+    - Formal workflow: pending → approved/rejected with review notes
+  - **Permission-Based Access**: Unauthorized users (project_manager, supervisor, labourer) default to Correction Requests tab; audit tab hidden for non-admins
+  - **Database**: audit_logs table with indexes on entity, user, action, and timestamp for efficient querying
 - **Labourer Dashboard Enhancement**: 
   - Current period metrics API (GET /api/my-current-period) calculates fortnightly earnings, days worked, next payment date, and total meters
   - Dashboard displays 4 summary cards: Current Period Earnings (ZAR), Days Worked This Period, Next Payment Date, Total Meters This Period

@@ -8,6 +8,7 @@ import {
   paymentPeriods,
   paymentPeriodEntries,
   correctionRequests,
+  auditLogs,
   projectManagers,
   projectSupervisors,
   type User,
@@ -28,9 +29,11 @@ import {
   type InsertPaymentPeriodEntry,
   type CorrectionRequest,
   type InsertCorrectionRequest,
+  type AuditLog,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, or, desc, gte, lte, sql, inArray } from "drizzle-orm";
+import { logCreate, logUpdate, logDelete, logAction } from "./auditService";
 
 // Storage interface
 export interface IStorage {
@@ -98,6 +101,10 @@ export interface IStorage {
   getCorrectionRequest(id: string): Promise<CorrectionRequest | undefined>;
   createCorrectionRequest(data: InsertCorrectionRequest): Promise<CorrectionRequest>;
   updateCorrectionRequest(id: string, data: Partial<InsertCorrectionRequest>): Promise<CorrectionRequest>;
+  
+  // Audit Log operations
+  getAuditLogs(filters?: { entityType?: string; entityId?: string; userId?: string; action?: string; startDate?: Date; endDate?: Date }): Promise<AuditLog[]>;
+  getAuditLog(id: string): Promise<AuditLog | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -249,15 +256,26 @@ export class DatabaseStorage implements IStorage {
 
   async createProject(data: InsertProject): Promise<Project> {
     const [project] = await db.insert(projects).values(data).returning();
+    await logCreate("project", project.id, data.createdBy, project as any).catch(console.error);
     return project;
   }
 
   async updateProject(id: string, data: Partial<InsertProject>): Promise<Project> {
+    // Fetch old project data for audit trail
+    const oldProject = await this.getProject(id);
+    
     const [project] = await db
       .update(projects)
       .set({ ...data, updatedAt: new Date() })
       .where(eq(projects.id, id))
       .returning();
+    
+    // Log update with user ID
+    const userId = (data as any).updatedBy || (oldProject?.createdBy);
+    if (userId && oldProject) {
+      await logUpdate("project", id, userId, oldProject as any, project as any).catch(console.error);
+    }
+    
     return project;
   }
 
@@ -369,6 +387,7 @@ export class DatabaseStorage implements IStorage {
 
   async createLabourer(data: InsertLabourer): Promise<Labourer> {
     const [labourer] = await db.insert(labourers).values(data).returning();
+    await logCreate("labourer", labourer.id.toString(), data.createdBy, labourer as any).catch(console.error);
     return labourer;
   }
 
@@ -379,11 +398,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateLabourer(id: string, data: Partial<InsertLabourer>): Promise<Labourer> {
+    // Fetch old labourer data for audit trail
+    const oldLabourer = await this.getLabourer(id);
+    
     const [labourer] = await db
       .update(labourers)
       .set({ ...data, updatedAt: new Date() })
       .where(eq(labourers.id, id))
       .returning();
+    
+    // Log update with user ID
+    const userId = (data as any).updatedBy || (oldLabourer?.createdBy);
+    if (userId && oldLabourer) {
+      await logUpdate("labourer", id, userId, oldLabourer as any, labourer as any).catch(console.error);
+    }
+    
     return labourer;
   }
 
@@ -497,15 +526,26 @@ export class DatabaseStorage implements IStorage {
 
   async createWorkLog(data: InsertWorkLog): Promise<WorkLog> {
     const [log] = await db.insert(workLogs).values(data).returning();
+    await logCreate("work_log", log.id, data.recordedBy, log as any).catch(console.error);
     return log;
   }
 
   async updateWorkLog(id: string, data: Partial<InsertWorkLog>): Promise<WorkLog> {
+    // Fetch old work log data for audit trail
+    const oldLog = await this.getWorkLog(id);
+    
     const [log] = await db
       .update(workLogs)
       .set(data)
       .where(eq(workLogs.id, id))
       .returning();
+    
+    // Log update with user ID
+    const userId = (data as any).updatedBy || (oldLog?.recordedBy);
+    if (userId && oldLog) {
+      await logUpdate("work_log", id, userId, oldLog as any, log as any).catch(console.error);
+    }
+    
     return log;
   }
 
@@ -567,6 +607,50 @@ export class DatabaseStorage implements IStorage {
       .where(eq(correctionRequests.id, id))
       .returning();
     return request;
+  }
+
+  // Audit Log operations
+  async getAuditLogs(filters?: { 
+    entityType?: string; 
+    entityId?: string; 
+    userId?: string; 
+    action?: string; 
+    startDate?: Date; 
+    endDate?: Date 
+  }): Promise<AuditLog[]> {
+    let query = db.select().from(auditLogs);
+    
+    const conditions: any[] = [];
+    
+    if (filters?.entityType) {
+      conditions.push(eq(auditLogs.entityType, filters.entityType));
+    }
+    if (filters?.entityId) {
+      conditions.push(eq(auditLogs.entityId, filters.entityId));
+    }
+    if (filters?.userId) {
+      conditions.push(eq(auditLogs.userId, filters.userId));
+    }
+    if (filters?.action) {
+      conditions.push(eq(auditLogs.action, filters.action as any));
+    }
+    if (filters?.startDate) {
+      conditions.push(gte(auditLogs.createdAt, filters.startDate));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(auditLogs.createdAt, filters.endDate));
+    }
+    
+    if (conditions.length > 0) {
+      return db.select().from(auditLogs).where(and(...conditions)).orderBy(desc(auditLogs.createdAt));
+    }
+    
+    return db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt));
+  }
+
+  async getAuditLog(id: string): Promise<AuditLog | undefined> {
+    const [log] = await db.select().from(auditLogs).where(eq(auditLogs.id, id));
+    return log || undefined;
   }
 }
 

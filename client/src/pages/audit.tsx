@@ -43,7 +43,7 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Plus, Loader2, CheckCircle, XCircle, FileText, Clock } from "lucide-react";
 import { insertCorrectionRequestSchema } from "@shared/schema";
-import type { User, CorrectionRequest } from "@shared/schema";
+import type { User, CorrectionRequest, AuditLog } from "@shared/schema";
 import type { z } from "zod";
 import { format, parseISO } from "date-fns";
 
@@ -59,6 +59,16 @@ const statusColors: Record<string, string> = {
   rejected: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
 };
 
+const actionColors: Record<string, string> = {
+  CREATE: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  UPDATE: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+  DELETE: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+  ASSIGN: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
+  SUBMIT: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+  APPROVE: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  REJECT: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+};
+
 const statusLabels: Record<string, string> = {
   pending: "Pending",
   approved: "Approved",
@@ -67,15 +77,17 @@ const statusLabels: Record<string, string> = {
 
 export default function AuditPage({ user }: AuditPageProps) {
   const { toast } = useToast();
+  const canCreate = true; // All authenticated users can create correction requests
+  const canReview = user.role === "super_admin" || user.role === "admin" || user.role === "project_manager";
+  const canViewAudit = user.role === "super_admin" || user.role === "admin";
+  
+  const [activeTab, setActiveTab] = useState<"audit" | "corrections">(canViewAudit ? "audit" : "corrections");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<CorrectionRequest | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [reviewNotes, setReviewNotes] = useState("");
-
-  const canCreate = true; // All authenticated users can create correction requests
-  const canReview = user.role === "super_admin" || user.role === "admin" || user.role === "project_manager";
 
   const createForm = useForm<CorrectionRequestFormData>({
     resolver: zodResolver(insertCorrectionRequestSchema),
@@ -90,7 +102,12 @@ export default function AuditPage({ user }: AuditPageProps) {
     },
   });
 
-  const { data: requests, isLoading } = useQuery<CorrectionRequest[]>({
+  const { data: auditLogs, isLoading: isLoadingAudit } = useQuery<AuditLog[]>({
+    queryKey: ["/api/audit-logs"],
+    enabled: canViewAudit,
+  });
+
+  const { data: requests, isLoading: isLoadingCorrections } = useQuery<CorrectionRequest[]>({
     queryKey: ["/api/correction-requests"],
   });
 
@@ -186,9 +203,13 @@ export default function AuditPage({ user }: AuditPageProps) {
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Audit Trail</h1>
-          <p className="text-muted-foreground">Track and manage data correction requests</p>
+          <p className="text-muted-foreground">
+            {activeTab === "audit" 
+              ? "Comprehensive system activity log with automatic change tracking"
+              : "Track and manage data correction requests"}
+          </p>
         </div>
-        {canCreate && (
+        {activeTab === "corrections" && canCreate && (
           <Button onClick={() => setCreateDialogOpen(true)} data-testid="button-create-request">
             <Plus className="mr-2 h-4 w-4" />
             New Request
@@ -196,26 +217,125 @@ export default function AuditPage({ user }: AuditPageProps) {
         )}
       </div>
 
-      <div className="flex gap-4">
-        <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-          <SelectTrigger className="w-48" data-testid="select-status-filter">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="approved">Approved</SelectItem>
-            <SelectItem value="rejected">Rejected</SelectItem>
-          </SelectContent>
-        </Select>
+      {/* Tabs */}
+      <div className="flex gap-2 border-b">
+        {canViewAudit && (
+          <Button
+            variant={activeTab === "audit" ? "default" : "ghost"}
+            onClick={() => setActiveTab("audit")}
+            className="rounded-b-none"
+            data-testid="tab-audit"
+          >
+            System Audit Log
+          </Button>
+        )}
+        <Button
+          variant={activeTab === "corrections" ? "default" : "ghost"}
+          onClick={() => setActiveTab("corrections")}
+          className="rounded-b-none"
+          data-testid="tab-corrections"
+        >
+          Correction Requests
+        </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Correction Requests</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
+      {/* Audit Log Table */}
+      {activeTab === "audit" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>System Audit Log</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoadingAudit ? (
+              <div className="flex justify-center p-8">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : !auditLogs || auditLogs.length === 0 ? (
+              <div className="text-center p-8 text-muted-foreground">
+                No audit logs found
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Timestamp</TableHead>
+                    <TableHead>Action</TableHead>
+                    <TableHead>Entity</TableHead>
+                    <TableHead>User</TableHead>
+                    <TableHead>Changes</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {auditLogs.map(log => (
+                    <TableRow key={log.id} data-testid={`row-audit-${log.id}`}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm">
+                            {log.createdAt && format(typeof log.createdAt === 'string' ? parseISO(log.createdAt) : log.createdAt, "MMM d, yyyy HH:mm")}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={actionColors[log.action]} data-testid={`action-${log.id}`}>
+                          {log.action}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{log.entityType}</div>
+                          <div className="text-sm text-muted-foreground truncate max-w-[200px]">{log.entityId}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{log.userName || 'Unknown'}</div>
+                          <div className="text-sm text-muted-foreground">{log.userEmail}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm max-w-xs truncate">
+                          {log.changes && typeof log.changes === 'object' 
+                            ? Object.entries(log.changes as Record<string, any>).slice(0, 2).map(([key, value]) => (
+                                <div key={key} className="truncate">
+                                  <span className="font-medium">{key}:</span> {JSON.stringify(value).slice(0, 50)}
+                                </div>
+                              ))
+                            : 'No details'}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Correction Requests Section */}
+      {activeTab === "corrections" && (
+        <>
+          <div className="flex gap-4">
+            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+              <SelectTrigger className="w-48" data-testid="select-status-filter">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Correction Requests</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoadingCorrections ? (
             <div className="flex justify-center p-8">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
@@ -292,6 +412,8 @@ export default function AuditPage({ user }: AuditPageProps) {
           )}
         </CardContent>
       </Card>
+        </>
+      )}
 
       {/* Create Correction Request Dialog */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
@@ -471,7 +593,7 @@ export default function AuditPage({ user }: AuditPageProps) {
               </div>
 
               {selectedRequest.reviewedBy && (
-                <>
+                <div className="space-y-3">
                   <div>
                     <p className="text-sm text-muted-foreground">Reviewed</p>
                     <p>{selectedRequest.reviewedAt ? format(typeof selectedRequest.reviewedAt === 'string' ? parseISO(selectedRequest.reviewedAt) : selectedRequest.reviewedAt, "MMM d, yyyy HH:mm") : "N/A"}</p>
@@ -482,7 +604,7 @@ export default function AuditPage({ user }: AuditPageProps) {
                       <p className="text-sm">{selectedRequest.reviewNotes}</p>
                     </div>
                   )}
-                </>
+                </div>
               )}
             </div>
           )}

@@ -343,6 +343,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // Add user ID for audit logging
+      (data as any).updatedBy = req.dbUser.id;
+      
       const project = await storage.updateProject(req.params.id, data);
       res.json(project);
     } catch (error: any) {
@@ -480,9 +483,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/labourers/:id", isAuthenticated, requireRole("super_admin", "admin", "project_manager", "supervisor", "project_admin"), async (req, res) => {
+  app.put("/api/labourers/:id", isAuthenticated, requireRole("super_admin", "admin", "project_manager", "supervisor", "project_admin"), async (req: any, res) => {
     try {
       const data = insertLabourerSchema.partial().parse(req.body);
+      
+      // Add user ID for audit logging
+      (data as any).updatedBy = req.dbUser.id;
+      
       const labourer = await storage.updateLabourer(req.params.id, data);
       res.json(labourer);
     } catch (error: any) {
@@ -1108,6 +1115,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // Add user ID for audit logging
+      (data as any).updatedBy = (req as any).dbUser.id;
+      
       const log = await storage.updateWorkLog(req.params.id, data);
       res.json(log);
     } catch (error: any) {
@@ -1222,37 +1232,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Generate CSV content
+      // Generate CSV content - Universal bank-compatible format
       const csvRows: string[] = [];
-      // CSV Header
-      csvRows.push('Account Number,Account Type,Branch Code,Amount,Reference,Beneficiary Name');
+      
+      // Universal CSV Header - Standard format recognized by all banks
+      csvRows.push('Account Number,Beneficiary Name,Amount,Branch Code,Account Type,Reference');
 
-      // Format date for reference and filename
       const endDate = typeof period.endDate === 'string' 
         ? period.endDate.split('T')[0].replace(/-/g, '')
         : new Date(period.endDate).toISOString().split('T')[0].replace(/-/g, '');
-      
+
+      // Helper function to escape CSV fields per RFC 4180 standard
+      const escapeCsvField = (field: string | null | undefined): string => {
+        if (field == null || field === undefined) return '';
+        const str = String(field).trim();
+        if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
+      // Convert account type to numeric code for universal bank compatibility
+      const formatAccountTypeCode = (type: string): string => {
+        const normalized = type.toLowerCase().trim();
+        if (normalized === 'cheque' || normalized === 'check' || normalized === 'current') return '1';
+        if (normalized === 'savings' || normalized === 'saving') return '2';
+        return '1';
+      };
+
+      // Sanitize beneficiary name
+      const sanitizeName = (name: string): string => {
+        if (!name) return '';
+        return name.trim()
+          .replace(/[^\w\s\-']/g, '')
+          .replace(/\s+/g, ' ')
+          .substring(0, 50)
+          .toUpperCase();
+      };
+
+      // Format reference - fixed to "mooyawireless"
+      const formatReference = (): string => {
+        return 'mooyawireless';
+      };
+
+      // Format amount
+      const formatAmount = (value: string | number): string => {
+        const num = typeof value === 'string' ? parseFloat(value) : value;
+        if (isNaN(num) || num <= 0) return '0.00';
+        return num.toFixed(2);
+      };
+
       // Add data rows
       for (const { entry, labourer } of entries) {
-        const amount = parseFloat(entry.totalEarnings).toFixed(2);
-        const reference = `PAY-${project.name.replace(/[^A-Z0-9]/gi, '').toUpperCase()}-${endDate}`;
-        const beneficiaryName = `${labourer.firstName} ${labourer.surname}`;
-        
-        csvRows.push(
-          `${labourer.accountNumber},${labourer.accountType},${labourer.branchCode},${amount},${reference},${beneficiaryName}`
-        );
+        const amount = formatAmount(entry.totalEarnings);
+        if (parseFloat(amount) <= 0) continue;
+
+        const accountNumber = (labourer.accountNumber?.trim() || '').replace(/\s+/g, '');
+        const beneficiaryName = sanitizeName(`${labourer.firstName} ${labourer.surname}`);
+        const branchCode = (labourer.branchCode?.trim() || '').replace(/\s+/g, '');
+        const accountType = formatAccountTypeCode(labourer.accountType);
+        const reference = formatReference();
+
+        if (!accountNumber || !beneficiaryName || !branchCode) continue;
+
+        const row = [
+          escapeCsvField(accountNumber),
+          escapeCsvField(beneficiaryName),
+          amount,
+          escapeCsvField(branchCode),
+          accountType,
+          escapeCsvField(reference),
+        ].join(',');
+
+        csvRows.push(row);
       }
 
-      // Join with Windows line endings (CRLF)
       const csvContent = csvRows.join('\r\n');
-
-      // Set headers for file download
       const filename = `PAYMENT_${project.name.replace(/[^A-Z0-9]/gi, '_').toUpperCase()}_${endDate}.csv`;
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      
-      // Send CSV
-      res.send(csvContent);
+      res.send('\ufeff' + csvContent);
     } catch (error) {
       console.error("Error generating payment file:", error);
       res.status(500).json({ message: "Failed to generate payment file" });
@@ -1380,6 +1439,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error updating payment period:", error);
       res.status(400).json({ message: error.message || "Failed to update payment period" });
+    }
+  });
+
+  // ============= Audit Log Routes =============
+  app.get("/api/audit-logs", isAuthenticated, requireRole("super_admin", "admin"), async (req: any, res) => {
+    try {
+      const { entityType, entityId, userId, action, startDate, endDate } = req.query;
+      const filters: any = {};
+      if (entityType) filters.entityType = entityType;
+      if (entityId) filters.entityId = entityId;
+      if (userId) filters.userId = userId;
+      if (action) filters.action = action;
+      if (startDate) filters.startDate = new Date(startDate as string);
+      if (endDate) filters.endDate = new Date(endDate as string);
+      const logs = await storage.getAuditLogs(filters);
+      res.json(logs);
+    } catch (error: any) {
+      console.error("Error fetching audit logs:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch audit logs" });
+    }
+  });
+
+  app.get("/api/audit-logs/:id", isAuthenticated, requireRole("super_admin", "admin"), async (req, res) => {
+    try {
+      const log = await storage.getAuditLog(req.params.id);
+      if (!log) {
+        return res.status(404).json({ message: "Audit log not found" });
+      }
+      res.json(log);
+    } catch (error: any) {
+      console.error("Error fetching audit log:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch audit log" });
     }
   });
 
