@@ -66,6 +66,17 @@ function getdobFromID(year: number, month: number, day: number): string {
   return `${fullYear}-${mm}-${dd}`;
 }
 
+// South African Banks with Universal Branch Codes (matching frontend)
+const SA_BANKS = [
+  { name: "Absa Bank", universalBranchCode: "632005" },
+  { name: "Capitec Bank", universalBranchCode: "470010" },
+  { name: "First National Bank (FNB)", universalBranchCode: "250655" },
+  { name: "Nedbank", universalBranchCode: "198765" },
+  { name: "Standard Bank", universalBranchCode: "051001" },
+  { name: "African Bank", universalBranchCode: "430000" },
+  { name: "TymeBank", universalBranchCode: "678910" },
+] as const;
+
 // Date helpers
 function getDateString(date: Date): string {
   return date.toISOString().split('T')[0];
@@ -307,10 +318,15 @@ async function seedData() {
       contactNumber: `+27${Math.floor(Math.random() * 900000000 + 600000000)}`,
       email: `${firstName.toLowerCase()}.${surname.toLowerCase()}${i}@worker.mooya.co.za`,
       employeeTypeId: employeeTypeIds[employeeTypeIndex],
-      bankName: ["FNB", "Standard Bank", "Nedbank", "ABSA", "Capitec"][Math.floor(Math.random() * 5)],
+      ...(() => {
+        const randomBank = SA_BANKS[Math.floor(Math.random() * SA_BANKS.length)];
+        return {
+          bankName: randomBank.name,
+          branchCode: randomBank.universalBranchCode,
+        };
+      })(),
       accountNumber: Math.floor(Math.random() * 9000000000 + 1000000000).toString(),
       accountType: Math.random() > 0.5 ? "savings" as const : "cheque" as const,
-      branchCode: "250655",
       createdBy: admin.id,
     });
     
@@ -335,10 +351,15 @@ async function seedData() {
       contactNumber: `+27${Math.floor(Math.random() * 900000000 + 600000000)}`,
       email: `${foreignWorker.first.toLowerCase()}.${foreignWorker.last.toLowerCase()}@worker.mooya.co.za`,
       employeeTypeId: employeeTypeIds[employeeTypeIndex],
-      bankName: ["FNB", "Capitec", "Standard Bank"][Math.floor(Math.random() * 3)],
+      ...(() => {
+        const randomBank = SA_BANKS[Math.floor(Math.random() * SA_BANKS.length)];
+        return {
+          bankName: randomBank.name,
+          branchCode: randomBank.universalBranchCode,
+        };
+      })(),
       accountNumber: Math.floor(Math.random() * 9000000000 + 1000000000).toString(),
       accountType: "savings" as const,
-      branchCode: "250655",
       createdBy: admin.id,
     });
     

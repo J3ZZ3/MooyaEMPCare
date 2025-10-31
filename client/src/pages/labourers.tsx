@@ -48,6 +48,30 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type LabourerFormData = z.infer<typeof insertLabourerSchema>;
 
+// South African Banks with Universal Branch Codes
+const SA_BANKS = [
+  { name: "Absa Bank", universalBranchCode: "632005" },
+  { name: "Capitec Bank", universalBranchCode: "470010" },
+  { name: "First National Bank (FNB)", universalBranchCode: "250655" },
+  { name: "Investec Bank", universalBranchCode: "580105" },
+  { name: "Nedbank", universalBranchCode: "198765" },
+  { name: "Standard Bank", universalBranchCode: "051001" },
+  { name: "African Bank", universalBranchCode: "430000" },
+  { name: "Mercantile Bank", universalBranchCode: "450905" },
+  { name: "TymeBank", universalBranchCode: "678910" },
+  { name: "Bidvest Bank", universalBranchCode: "679000" },
+  { name: "Sasfin Bank", universalBranchCode: "683000" },
+  { name: "Bank of Athens", universalBranchCode: "410506" },
+  { name: "RMB Private Bank", universalBranchCode: "222026" },
+  { name: "South African Post Bank (Post Office)", universalBranchCode: "460005" },
+  { name: "Hollard Bank", universalBranchCode: "585001" },
+  { name: "Discovery Bank", universalBranchCode: "679000" },
+  { name: "Standard Chartered Bank", universalBranchCode: "730020" },
+  { name: "Barclays Bank", universalBranchCode: "590000" },
+  { name: "Investec Bank Limited", universalBranchCode: "580105" },
+  { name: "Mercantile Bank Limited", universalBranchCode: "450905" },
+] as const;
+
 export default function LabourersPage() {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -148,6 +172,7 @@ export default function LabourersPage() {
 
   // Watch ID number for auto-population (only for SA IDs, not passports)
   const idNumber = form.watch("idNumber");
+  const bankName = form.watch("bankName");
 
   useEffect(() => {
     if (idNumber && idNumber.length >= 6) {
@@ -168,6 +193,16 @@ export default function LabourersPage() {
       }
     }
   }, [idNumber, form]);
+
+  // Auto-populate branch code when bank is selected
+  useEffect(() => {
+    if (bankName) {
+      const selectedBank = SA_BANKS.find(bank => bank.name === bankName);
+      if (selectedBank) {
+        form.setValue("branchCode", selectedBank.universalBranchCode);
+      }
+    }
+  }, [bankName, form]);
 
   const createMutation = useMutation({
     mutationFn: async (data: LabourerFormData) => {
@@ -489,9 +524,20 @@ export default function LabourersPage() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Bank Name *</FormLabel>
-                            <FormControl>
-                              <Input {...field} data-testid="input-bank-name" />
-                            </FormControl>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-bank-name">
+                                  <SelectValue placeholder="Select a bank" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {SA_BANKS.map((bank) => (
+                                  <SelectItem key={bank.name} value={bank.name}>
+                                    {bank.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -538,9 +584,9 @@ export default function LabourersPage() {
                         name="branchCode"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Branch Code *</FormLabel>
+                            <FormLabel>Branch Code * (Auto-filled)</FormLabel>
                             <FormControl>
-                              <Input {...field} data-testid="input-branch-code" />
+                              <Input {...field} disabled className="bg-muted" data-testid="input-branch-code" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
